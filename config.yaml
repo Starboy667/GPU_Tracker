@@ -1,0 +1,77 @@
+# GPU Watch configuration
+# Discord webhook: put DISCORD_WEBHOOK_URL=... in a .env file next to this one (kept out of git).
+
+# Retailers checked by default (each watch can override with its own `sites:` list).
+sites: [ldlc, materiel, topachat, grosbill, alternate, dealabs, idealo]
+
+defaults:
+  in_stock_only: true      # only alert when the item is (or may be) in stock
+  renotify_drop: 10        # re-alert for the same product only if it drops ≥ 10 € more
+  # Automatic deal detection: every run stores each card's lowest available price of the day
+  # (price_stats.json). A listing is a deal when it's ≥ deal_drop_pct % under the median of
+  # those daily lows over the last baseline_days days. Needs baseline_min_days of history first.
+  deal_drop_pct: 8         # per watch override: `deal_drop_pct: 5`
+  baseline_days: 14
+  baseline_min_days: 3
+  dealabs_max_age_days: 3  # ignore Dealabs deals posted longer ago (likely expired)
+  min_price: 150           # ignore anything cheaper (accessories, cables...)
+  # Titles matching this regex are ignored for every watch: prebuilt PCs, laptops (16"),
+  # CPU+GPU bundles, waterblocks, used/refurbished. Remove 'occasion' if you're fine with used.
+  exclude: '\bPC\b|portable|laptop|ordinateur|\d+(\.\d)?"|ryzen|core\s|ultra\s\d|\d+\s?go/|/\d+go|\+|\bkit\b|watercooling|waterblock|alphacool|backplate|bundle|occasion|reconditionn'
+
+watches:
+  # Current card: RTX 2080 8 GB (~22 on the TechPowerUp 4K relative-perf scale where RTX 5090 = 100).
+  # Only cards ≥ ~2x faster are listed. perf = that scale, so ×2 ≈ 44+.
+  # No prices needed: deals are detected vs. the stored baseline. Optionally add `max_price: 800`
+  # to a watch to also alert whenever it's at or below a fixed price you'd happily pay.
+  # PSU isn't known: the 2080 draws ~225 W; cards marked ⚡ draw 300 W+ (750 W+ PSU recommended).
+
+  # ---- Current generation (easy to find new) ----
+  - name: RTX 5070                     # perf 45 (~2.0x), 12 GB, 250 W
+    query: rtx 5070
+    match: 'RTX\s*5070(?!\s*Ti)'       # 5070 but not 5070 Ti
+    urls:
+      # TopAchat's search page renders few items server-side; its category filter works better.
+      topachat: https://www.topachat.com/pages/produits_cat_est_micro_puis_rubrique_est_wgfx_pcie_puis_f_est_58-13420.html
+
+  - name: RX 9070                      # perf 49 (~2.2x), 16 GB, 220 W — match auto-excludes XT/GRE
+    query: rx 9070
+
+  - name: RX 9070 XT                   # perf 55 (~2.5x), 16 GB, ⚡ 304 W
+    query: rx 9070 xt
+    urls:
+      topachat: https://www.topachat.com/pages/produits_cat_est_micro_puis_rubrique_est_wgfx_pcie_puis_f_est_58-13438.html
+
+  - name: RTX 5070 Ti                  # perf 57 (~2.6x), 16 GB, ⚡ 300 W
+    query: rtx 5070 ti
+    match: 'RTX\s*5070\s*Ti'
+    # To add TopAchat: open topachat.com → Cartes graphiques → filter on "RTX 5070 Ti",
+    # then paste that page's URL here:
+    # urls:
+    #   topachat: https://www.topachat.com/pages/produits_cat_est_micro_puis_rubrique_est_wgfx_pcie_puis_f_est_58-XXXXX.html
+
+  - name: RTX 5080                     # perf 66 (~3.0x), 16 GB, ⚡ 360 W
+    query: rtx 5080
+
+  # ---- Previous generation (end-of-stock / clearance deals only — only worth it under the 50-series price) ----
+  - name: RTX 4070 Ti Super            # perf 50 (~2.3x), 16 GB, 285 W
+    query: rtx 4070 ti super
+
+  - name: RX 7900 XT                   # perf 50 (~2.3x), 20 GB, ⚡ 315 W
+    query: rx 7900 xt
+    match: 'RX\s*7900\s*XT\b'         # \b keeps XTX out
+
+  - name: RTX 4080                     # perf 58 (~2.6x), 16 GB, 320 W — match auto-excludes Super
+    query: rtx 4080
+
+  - name: RTX 4080 Super               # perf 59 (~2.7x), 16 GB, 320 W
+    query: rtx 4080 super
+
+  - name: RX 7900 XTX                  # perf 58 (~2.6x), 24 GB, ⚡ 355 W
+    query: rx 7900 xtx
+
+  # Skipped on purpose:
+  #  - RTX 4070 Super (42), RX 9070 GRE (41), 4070 (36) and below: < 2x, too small a jump.
+  #  - RTX 4090 / 5090: on a 1080p 300 Hz screen the 9700X becomes the limit long before
+  #    these cards are fully used — you'd pay 2–3x the 5080 price for little real gain.
+  #  - RTX 3090 / 3090 Ti: only sold used now (filtered by `occasion` in exclude) and power-hungry.
