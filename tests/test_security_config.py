@@ -102,6 +102,9 @@ def test_config_from_environment():
     assert (config.port, config.host, config.timezone) == (9000, "127.0.0.1", "UTC")
     assert not config.scheduler_enabled and config.allow_private_notify_urls
     assert config.admin_email == "me@example.org" and config.admin_password == " keep spaces "
+    assert config.outbound_check_url == ""
+    checked = load_config({"SECRET_KEY": KEY, "OUTBOUND_CHECK_URL": " https://am.i.mullvad.net/json "})
+    assert checked.outbound_check_url == "https://am.i.mullvad.net/json"
 
 
 def test_config_plain_http_turns_off_secure_cookies_unless_forced():
@@ -111,6 +114,7 @@ def test_config_plain_http_turns_off_secure_cookies_unless_forced():
 
 @pytest.mark.parametrize("env", [
     {}, {"SECRET_KEY": "short"}, {"SECRET_KEY": KEY, "PORT": "http"}, {"SECRET_KEY": KEY, "APP_TIMEZONE": "Mars/Base"},
+    {"SECRET_KEY": KEY, "OUTBOUND_CHECK_URL": "file:///etc/passwd"},
 ])
 def test_config_fails_fast(env):
     with pytest.raises(ConfigError):

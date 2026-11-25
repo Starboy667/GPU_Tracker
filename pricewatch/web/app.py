@@ -21,6 +21,7 @@ from pricewatch.checker import Checker
 from pricewatch.config import Config, ConfigError, load_config
 from pricewatch.db import Database, iso, utcnow
 from pricewatch.delivery import Dispatcher
+from pricewatch.outbound import OutboundMonitor
 from pricewatch.repos import users as users_repo
 from pricewatch.scan import polite_pause
 from pricewatch.scheduler import Scheduler
@@ -129,6 +130,7 @@ def build_services(
         limiter=security.RateLimiter(max_failures=5, window_seconds=900),
         account_limiter=security.RateLimiter(max_failures=50, window_seconds=900),
         preview_slots=threading.BoundedSemaphore(MAX_CONCURRENT_PREVIEWS),
+        outbound=OutboundMonitor(config.outbound_check_url, clock=clock),
         test_slots=threading.BoundedSemaphore(MAX_CONCURRENT_CHANNEL_TESTS),
         templates=build_templates(config),
         clock=clock,

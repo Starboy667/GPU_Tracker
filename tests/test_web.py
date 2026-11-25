@@ -613,6 +613,42 @@ def test_deleting_a_channel_takes_it_off_watches(admin):
         assert [c.id for c in channels_repo.list_all(conn, admin.svc.box)] == [3, 1]  # id 2 is not reused
 
 
+def test_status_page_shows_the_vpn_state(admin):
+    from pricewatch.outbound import OutboundStatus
+
+    assert "Outbound connection" not in admin.get("/status").text  # no check URL configured
+
+    class Monitor:
+        enabled = True
+        status = None
+
+        def current(self):
+            return self.status
+
+    monitor = Monitor()
+    admin.svc.outbound = monitor
+    stamp = "2026-11-25T08:58:00Z"
+
+    monitor.status = OutboundStatus(stamp, ok=True, ip="193.32.126.172", location="Paris, France",
+                                    organization="31173 Services AB", vpn=True, vpn_server="fr-par-wg-004")
+    page = admin.get("/status").text
+    assert "Through the VPN" in page and "Server fr-par-wg-004" in page and "193.32.126.172" in page
+    assert "Paris, France" in page and "Checked 2 min ago" in page
+
+    monitor.status = OutboundStatus(stamp, ok=True, ip="54.37.231.202", location="Roubaix, FR", vpn=False)
+    page = admin.get("/status").text
+    assert "Not through the VPN" in page and "leaving from the server's own address" in page
+
+    monitor.status = OutboundStatus(stamp, ok=True, ip="54.37.231.202", vpn=None)
+    page = admin.get("/status").text
+    assert "Not reported" in page and "Unknown" in page
+
+    monitor.status = OutboundStatus(stamp, ok=False, error="cannot connect")
+    page = admin.get("/status").text
+    assert "No connection" in page and "cannot reach the internet: cannot connect" in page
+    assert "the tunnel is down" in page
+
+
 def test_unknown_pages(admin):
     missing = admin.get("/definitely-not-here")
     assert missing.status_code == 404 and "Page not found" in missing.text

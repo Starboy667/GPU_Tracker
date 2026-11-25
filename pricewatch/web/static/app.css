@@ -276,6 +276,7 @@ strong { font-weight: 650; }
 .facts dt { font-size: 0.8125rem; color: var(--text-2); }
 .facts dd { margin-top: 0.125rem; }
 .fact-value { font-size: 1.25rem; font-weight: 650; letter-spacing: -0.01em; white-space: nowrap; }
+.facts-plain { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 0.75rem; }
 @media (max-width: 52rem) { .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 26rem) { .facts { grid-template-columns: 1fr; } }
 

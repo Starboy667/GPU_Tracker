@@ -16,6 +16,7 @@ log = logging.getLogger(__name__)
 
 PRODUCT_HEALTH_PREFIX = "product:"
 MAX_ERROR_LENGTH = 300
+SKIPPED_NOTE = "(not asked again during this check)"
 SLOW_PATTERN_MESSAGE = "the title pattern takes too long on these titles: simplify the match or ignore expression"
 
 ProductScraper = Callable[[FetchContext, str, str | None], Listing]
@@ -69,11 +70,18 @@ def scan_watch(
         if scraper is None:
             errors.append((key, "unknown site"))
             continue
+        if key in ctx.unreachable:
+            message = f"{ctx.unreachable[key]} {SKIPPED_NOTE}"
+            errors.append((scraper.label, message))
+            outcomes.append((key, message))
+            continue
         wait()
         try:
             results = scraper.search(ctx, watch.query, watch.site_urls.get(key))
         except ScrapeError as exc:
             message = short(str(exc))
+            if exc.site_wide:
+                ctx.unreachable[key] = message
         except Exception as exc:  # a parser tripping on new markup must not stop the run
             log.exception("scraper %s crashed for watch %s", key, watch.name)
             message = f"parser error ({type(exc).__name__})"
@@ -93,12 +101,19 @@ def scan_watch(
         outcomes.append((key, message))
 
     for product in watch.product_urls:
-        wait()
         health_key = product_health_key(product.url)
+        if health_key in ctx.unreachable:
+            message = f"{ctx.unreachable[health_key]} {SKIPPED_NOTE}"
+            errors.append((health_key.removeprefix(PRODUCT_HEALTH_PREFIX), message))
+            outcomes.append((health_key, message))
+            continue
+        wait()
         try:
             listing = product_scraper(ctx, product.url, product.selector or None)
         except ScrapeError as exc:
             message = short(str(exc))
+            if exc.site_wide:
+                ctx.unreachable[health_key] = message
         except Exception as exc:
             log.exception("product page scraper crashed for watch %s", watch.name)
             message = f"parser error ({type(exc).__name__})"

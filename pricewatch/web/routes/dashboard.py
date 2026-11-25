@@ -72,5 +72,6 @@ def status(request: Request):
         settings=settings,
         next_due=svc.scheduler.next_due if svc.config.scheduler_enabled else None,
         scheduler_enabled=svc.config.scheduler_enabled,
+        outbound=svc.outbound.current(),
         refresh=svc.scheduler.is_busy,
     )

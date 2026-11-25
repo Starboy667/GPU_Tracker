@@ -17,6 +17,7 @@ from pricewatch.config import Config
 from pricewatch.db import Database
 from pricewatch.delivery import Dispatcher
 from pricewatch.models import User
+from pricewatch.outbound import OutboundMonitor
 from pricewatch.repos import users as users_repo
 from pricewatch.scheduler import Scheduler
 from pricewatch.security import RateLimiter, SecretBox
@@ -43,6 +44,7 @@ class Services:
     templates: Jinja2Templates
     clock: Callable[[], datetime]
     preview_slots: threading.BoundedSemaphore
+    outbound: OutboundMonitor
     test_slots: threading.BoundedSemaphore
 
 

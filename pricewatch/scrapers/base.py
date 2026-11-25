@@ -25,6 +25,11 @@ HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 }
 TIMEOUT_SECONDS = 25
+# A site that does not even accept the connection is dropping our packets (typical of an address
+# block): give up quickly instead of waiting out the full read timeout three times.
+CONNECT_TIMEOUT_SECONDS = 8
+BLOCKED_STATUSES = (403, 429)
+TRANSPORT_FAILURES = frozenset({"ConnectTimeout", "ConnectionError", "DNSError", "SSLError", "CertificateVerifyError"})
 MAX_REDIRECTS = 5
 MAX_BODY_BYTES = 6 * 1024 * 1024
 BODY_DEADLINE_SECONDS = 60
@@ -37,7 +42,15 @@ SOURCE_PRODUCT_PAGE = "product"
 
 
 class ScrapeError(RuntimeError):
-    """A page could not be fetched or understood. The message is shown in the UI."""
+    """A page could not be fetched or understood. The message is shown in the UI.
+
+    ``site_wide`` means the failure is about the site, not about this page: it does not answer
+    at all, or it refuses us (403, 429). Asking it again in the same check is pointless.
+    """
+
+    def __init__(self, message: str, *, site_wide: bool = False):
+        super().__init__(message)
+        self.site_wide = site_wide
 
 
 @dataclass(frozen=True)
@@ -58,14 +71,19 @@ class FetchContext:
     dealabs_max_age_days: int = 3
     sleep: Callable[[float], None] = time.sleep
     cache: dict[str, str] = field(default_factory=dict)
+    # Sites (scraper key, or "product:<host>") that proved unreachable or closed to us during
+    # this run, with the error: the rest of the run skips them instead of timing out again.
+    unreachable: dict[str, str] = field(default_factory=dict)
 
     def get(self, url: str) -> str:
         """Plain HTTP GET with retries, for the retailers that tolerate it."""
-        err = "no attempt made"
+        err, site_wide = "no attempt made", False
         for attempt in range(3):
             try:
                 with netsafe.guard():
-                    r = self.session.get(url, headers=HEADERS, timeout=TIMEOUT_SECONDS, stream=True)
+                    r = self.session.get(
+                        url, headers=HEADERS, timeout=(CONNECT_TIMEOUT_SECONDS, TIMEOUT_SECONDS), stream=True
+                    )
                     try:
                         if r.status_code == 200:
                             r._content = netsafe.read_capped(
@@ -74,16 +92,19 @@ class FetchContext:
                             return _body_text(r)
                     finally:
                         r.close()
-                err = f"HTTP {r.status_code}"
+                err, site_wide = f"HTTP {r.status_code}", r.status_code in BLOCKED_STATUSES
             except netsafe.ResponseTooLarge as exc:
                 raise ScrapeError("page too large") from exc
             except TimeoutError:
-                err = "page took too long"
+                err, site_wide = "page took too long", False
+            except requests.ConnectTimeout as exc:
+                raise ScrapeError(type(exc).__name__, site_wide=True) from None  # retrying only waits longer
             except (requests.RequestException, netsafe.UnsafeURLError) as exc:
                 err = type(exc).__name__ if isinstance(exc, requests.RequestException) else str(exc)
+                site_wide = isinstance(exc, requests.ConnectionError)
             if attempt < 2:
                 self.sleep(2 + attempt * 3)
-        raise ScrapeError(err)
+        raise ScrapeError(err, site_wide=site_wide)
 
     def get_cached(self, url: str) -> str:
         """Like ``get`` but fetched once per run (feeds shared by several watches)."""
@@ -102,7 +123,7 @@ class FetchContext:
             from curl_cffi import requests as cr
         except ImportError as exc:  # pragma: no cover - dependency is declared
             raise ScrapeError("curl_cffi is not installed") from exc
-        err = "no attempt made"
+        err, site_wide = "no attempt made", False
         for attempt in range(2):
             try:
                 return self._browser_get(cr, url)
@@ -111,21 +132,24 @@ class FetchContext:
             except netsafe.ResponseTooLarge as exc:
                 raise ScrapeError("page too large") from exc
             except TimeoutError:
-                err = "page took too long"
+                err, site_wide = "page took too long", False
             except ScrapeError as exc:
-                err = str(exc)
+                err, site_wide = str(exc), exc.site_wide
             except Exception as exc:  # curl_cffi raises its own hierarchy
                 err = type(exc).__name__
+                site_wide = err in TRANSPORT_FAILURES
+                if err == "ConnectTimeout":
+                    break  # retrying only waits longer
             if attempt < 1:
                 self.sleep(3 + attempt * 5)
-        raise ScrapeError(err)
+        raise ScrapeError(err, site_wide=site_wide)
 
     def _browser_get(self, cr, url: str) -> str:
         for _ in range(MAX_REDIRECTS + 1):
             r = cr.get(
                 url,
                 impersonate="chrome",
-                timeout=TIMEOUT_SECONDS,
+                timeout=(CONNECT_TIMEOUT_SECONDS, TIMEOUT_SECONDS),
                 allow_redirects=False,
                 stream=True,
                 headers={"Accept-Language": HEADERS["Accept-Language"]},
@@ -136,7 +160,7 @@ class FetchContext:
                     url = requests.compat.urljoin(url, r.headers["location"])
                     continue
                 if r.status_code != 200:
-                    raise ScrapeError(f"HTTP {r.status_code} (blocked?)")
+                    raise ScrapeError(f"HTTP {r.status_code} (blocked?)", site_wide=r.status_code in BLOCKED_STATUSES)
                 body = netsafe.read_capped(r.iter_content(), limit=MAX_BODY_BYTES, seconds=BODY_DEADLINE_SECONDS)
                 return _decode(body, r.headers.get("content-type", ""))
             finally:

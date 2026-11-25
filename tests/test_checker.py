@@ -149,6 +149,36 @@ def test_scan_reports_failures_and_keeps_going(world):
     assert world.pauses == 3  # between the four requests, not before the first
 
 
+def test_a_shop_that_refuses_us_is_asked_once_per_check(world):
+    """Otherwise every watch would wait for the same time-out again."""
+    first = world.add_watch(name="A", sites=("ldlc", "dealabs"),
+                            product_urls=(ProductURL("https://shop.example/1"), ProductURL("https://shop.example/2")))
+    second = world.add_watch(name="B", sites=("ldlc", "dealabs"))
+    world.ldlc.results = ScrapeError("ConnectTimeout", site_wide=True)
+    world.dealabs.results = ScrapeError("HTTP 500")  # a plain failure: still worth asking again
+    calls = []
+
+    def product(ctx, url, selector=None):
+        calls.append(url)
+        raise ScrapeError("HTTP 403 (blocked?)", site_wide=True)
+
+    world.checker._product_scraper = product
+    run = world.checker.run()
+    assert len(world.ldlc.calls) == 1 and len(world.dealabs.calls) == 2
+    assert calls == ["https://shop.example/1"]
+    assert ("A", "LDLC", "ConnectTimeout") in run.errors
+    assert ("B", "LDLC", "ConnectTimeout (not asked again during this check)") in run.errors
+    assert [error for watch, site, error in run.errors if site == "shop.example"] == [
+        "HTTP 403 (blocked?)", "HTTP 403 (blocked?) (not asked again during this check)"]
+    with world.db.connect() as conn:
+        assert runs.health_get(conn, "ldlc").consecutive_failures == 1
+        assert runs.health_get(conn, "product:shop.example").consecutive_failures == 1
+
+    world.ldlc.results = [offer(900)]
+    world.checker.run()  # a new check asks again
+    assert len(world.ldlc.calls) == 3 and len(world.listings(first)) == 1 and len(world.listings(second)) == 1
+
+
 # ------------------------------------------------------------------ run: detection
 
 def test_target_price_alerts_once_then_on_a_further_drop(world):

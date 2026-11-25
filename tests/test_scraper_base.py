@@ -249,7 +249,7 @@ def test_browser_get_impersonates_chrome_and_never_auto_redirects(ctx, curl):
     assert url == URL
     assert kwargs["impersonate"] == "chrome"
     assert kwargs["allow_redirects"] is False and kwargs["stream"] is True
-    assert kwargs["timeout"] == base.TIMEOUT_SECONDS
+    assert kwargs["timeout"] == (base.CONNECT_TIMEOUT_SECONDS, base.TIMEOUT_SECONDS)
     assert kwargs["headers"]["Accept-Language"].startswith("fr-FR")
     assert response.closed
 
@@ -389,3 +389,60 @@ def test_browser_get_reports_curl_errors_without_leaking_the_url(ctx, curl):
     with pytest.raises(ScrapeError) as excinfo:
         ctx.get_as_browser(URL)
     assert str(excinfo.value) == "RuntimeError"
+
+
+# --------------------------------------------------------------------------- sites that refuse or ignore us
+
+@responses.activate
+def test_a_site_that_drops_the_connection_fails_at_once_and_for_the_whole_site(ctx):
+    responses.get(URL, body=requests.ConnectTimeout("no route"))
+    with pytest.raises(ScrapeError) as caught:
+        ctx.get(URL)
+    assert str(caught.value) == "ConnectTimeout" and caught.value.site_wide
+    assert len(responses.calls) == 1 and ctx.sleeps == []  # waiting three times would change nothing
+
+
+@responses.activate
+@pytest.mark.parametrize("status,site_wide", [(403, True), (429, True), (500, False), (404, False)])
+def test_refusals_concern_the_whole_site_but_server_errors_do_not(ctx, status, site_wide):
+    responses.get(URL, status=status)
+    with pytest.raises(ScrapeError) as caught:
+        ctx.get(URL)
+    assert caught.value.site_wide is site_wide
+
+
+@responses.activate
+def test_connection_errors_are_retried_then_reported_as_site_wide(ctx):
+    responses.get(URL, body=requests.ConnectionError("reset"))
+    with pytest.raises(ScrapeError) as caught:
+        ctx.get(URL)
+    assert caught.value.site_wide and len(responses.calls) == 3
+
+
+@responses.activate
+def test_get_uses_a_short_connect_timeout(ctx):
+    responses.get(URL, body="ok")
+    ctx.get(URL)
+    assert responses.calls[0].request.req_kwargs["timeout"] == (base.CONNECT_TIMEOUT_SECONDS, base.TIMEOUT_SECONDS)
+
+
+def test_browser_get_flags_blocks_and_gives_up_fast_on_connect_timeouts(ctx, curl):
+    curl(FakeResponse(403))
+    with pytest.raises(ScrapeError) as caught:
+        ctx.get_as_browser(URL)
+    assert caught.value.site_wide
+
+    class ConnectTimeout(Exception):
+        pass
+
+    fake = curl(ConnectTimeout("curl: (28)"))
+    ctx.sleeps.clear()
+    with pytest.raises(ScrapeError) as caught:
+        ctx.get_as_browser(URL)
+    assert str(caught.value) == "ConnectTimeout" and caught.value.site_wide
+    assert len(fake.calls) == 1 and ctx.sleeps == []
+
+    curl(FakeResponse(500))
+    with pytest.raises(ScrapeError) as caught:
+        ctx.get_as_browser(URL)
+    assert not caught.value.site_wide

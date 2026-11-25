@@ -14,6 +14,42 @@
   <div class="actions">{{ ui.post_button("/check", "Check now", "btn", "Starting…") }}</div>
 </div>
 
+{% if outbound %}
+<section class="section">
+  <div class="section-head">
+    <h2>Outbound connection</h2>
+    <span class="muted">How this server reaches the shops. Checked {{ outbound.checked_at|ago(now) }}.</span>
+  </div>
+  <dl class="facts facts-plain">
+    <div>
+      <dt>VPN</dt>
+      <dd>
+        {% if not outbound.ok %}<span class="chip chip-bad">No connection</span>
+        {% elif outbound.vpn is true %}<span class="chip chip-good">Through the VPN</span>
+        {% elif outbound.vpn is false %}<span class="chip chip-bad">Not through the VPN</span>
+        {% else %}<span class="chip chip-muted">Not reported</span>{% endif %}
+        {% if outbound.vpn_server %}<span class="sub">Server {{ outbound.vpn_server }}</span>{% endif %}
+      </dd>
+    </div>
+    {% if outbound.ok %}
+    <div>
+      <dt>Address the shops see</dt>
+      <dd><span class="mono">{{ outbound.ip }}</span>{% if outbound.organization %}<span class="sub">{{ outbound.organization }}</span>{% endif %}</dd>
+    </div>
+    <div>
+      <dt>Exit location</dt>
+      <dd>{{ outbound.location or "Unknown" }}</dd>
+    </div>
+    {% endif %}
+  </dl>
+  {% if not outbound.ok %}
+  <p class="notice notice-error">The server cannot reach the internet: {{ outbound.error }}. If it runs behind a VPN with a kill switch, the tunnel is down, and shops cannot be checked or alerts sent until it is back.</p>
+  {% elif outbound.vpn is false %}
+  <p class="notice notice-error">Requests are leaving from the server's own address, not from the VPN.</p>
+  {% endif %}
+</section>
+{% endif %}
+
 <section class="section">
   <div class="section-head">
     <h2>Shops</h2>

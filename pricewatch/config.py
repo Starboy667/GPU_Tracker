@@ -25,6 +25,9 @@ class Config:
     timezone: str = "Europe/Paris"
     scheduler_enabled: bool = True
     allow_private_notify_urls: bool = False  # let channels target private/cluster-internal hosts
+    # JSON endpoint answering "from which address do you see me?" (e.g. https://am.i.mullvad.net/json).
+    # When set, the Status page shows how the app reaches the internet, VPN included.
+    outbound_check_url: str = ""
     host: str = "0.0.0.0"
     port: int = 8000
     session_days: int = 14
@@ -59,6 +62,9 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
         ZoneInfo(timezone)
     except (ZoneInfoNotFoundError, ValueError) as exc:
         raise ConfigError(f"APP_TIMEZONE={timezone!r} is not a known time zone") from exc
+    outbound_check_url = env.get("OUTBOUND_CHECK_URL", "").strip()
+    if outbound_check_url and not outbound_check_url.lower().startswith(("https://", "http://")):
+        raise ConfigError("OUTBOUND_CHECK_URL must start with https:// or http://")
     try:
         port = int(env.get("PORT", "").strip() or 8000)
     except ValueError as exc:
@@ -74,6 +80,7 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
         timezone=timezone,
         scheduler_enabled=_flag(env, "SCHEDULER_ENABLED", True),
         allow_private_notify_urls=_flag(env, "ALLOW_PRIVATE_NOTIFY_URLS", False),
+        outbound_check_url=outbound_check_url,
         host=env.get("HOST", "").strip() or "0.0.0.0",
         port=port,
     )

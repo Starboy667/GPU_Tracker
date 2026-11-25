@@ -50,6 +50,7 @@ Environment variables, read once at startup.
 | `PORT`, `HOST` | `8000`, `0.0.0.0` | |
 | `SCHEDULER_ENABLED` | `true` | `false` stops the automatic checks; "Check now" still works. |
 | `ALLOW_PRIVATE_NOTIFY_URLS` | `false` | `true` lets channels target private or in-cluster hosts (a self-hosted ntfy or Gotify). |
+| `OUTBOUND_CHECK_URL` | | A "what is my address" JSON endpoint, e.g. `https://am.i.mullvad.net/json`. When set, the Status page shows the address the shops see and whether it is a VPN exit. |
 
 Everything else (check interval, drop percentage, history length, ...) is under **Settings** in the app.
 
@@ -66,6 +67,8 @@ the usual price, or at or under the watch's target price if it has one.
   above the threshold or out of stock.
 - A watch can also alert when a product comes back in stock, whatever the price.
 - If a shop fails 6 scheduled checks in a row you get one "scraper" alert, and one more when it works again.
+- A shop that does not answer at all, or answers 403/429, is asked once per check: the other
+  watches skip it instead of waiting for the same time-out.
 
 All of these numbers are settings; the drop percentage and the stock rule can differ per watch.
 
@@ -147,6 +150,10 @@ its fields and a `send(config, message)`; the form is generated from the fields.
 No test touches the network: shop parsers run against saved pages, channels against mocked HTTP.
 
 ## Deploying
+
+Behind a VPN (for instance a [gluetun](https://github.com/qdm12/gluetun) container sharing the
+app's network), set `OUTBOUND_CHECK_URL` to see on the Status page which address the shops see.
+Expect some shops to refuse VPN addresses: they show up as failing on that same page.
 
 The image runs as a non-root user, needs a writable `/data` and nothing else. Run **one** replica:
 the scheduler, the sign-in throttling and SQLite all assume a single process. Kubernetes manifests
