@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui with context %}
+{% block title %}Accounts{% endblock %}
+{% block page_class %} page-medium{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/settings">Settings</a></p>
+<div class="page-head">
+  <div>
+    <h1>Accounts</h1>
+    <p class="page-meta">Everyone signed in sees the same watches and channels. Administrators also manage settings and accounts.</p>
+  </div>
+</div>
+
+<div class="table-wrap">
+<table class="table table-stack">
+  <thead><tr><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Created</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+  <tbody>
+    {% for u in users %}
+    <tr>
+      <th scope="row">{{ u.email }}{% if u.id == user.id %} <span class="chip chip-muted">You</span>{% endif %}</th>
+      <td data-label="Role">{{ "Administrator" if u.is_admin else "Member" }}</td>
+      <td data-label="Created"><span class="muted">{{ u.created_at|localday }}</span></td>
+      <td class="cell-actions">
+        {% if u.id != user.id %}
+        <details class="confirm">
+          <summary class="btn btn-sm">Set password</summary>
+          <form method="post" action="/users/{{ u.id }}/password" class="confirm-body">
+            {{ ui.csrf() }}
+            <label for="pw-{{ u.id }}">New password for {{ u.email }}</label>
+            <input id="pw-{{ u.id }}" name="password" type="password" autocomplete="new-password" minlength="{{ min_password }}" required>
+            <button class="btn btn-sm btn-primary">Set password</button>
+          </form>
+        </details>
+        {{ ui.confirm_delete("/users/" ~ u.id ~ "/delete", "Delete", "Delete the account of " ~ u.email ~ "?", "Yes, delete it") }}
+        {% else %}<a class="btn btn-sm" href="/account">Change my password</a>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<section class="section">
+  <div class="section-head"><h2>Add an account</h2></div>
+  <form method="post" action="/users" class="stack form-narrow" novalidate>
+    {{ ui.csrf() }}
+    {{ ui.field("email", "Email", values, errors, type="email", required=true, autocomplete="off") }}
+    <div class="field{% if errors.get('password') %} has-error{% endif %}">
+      <label for="f-password">Password</label>
+      <input id="f-password" name="password" type="password" autocomplete="new-password" required>
+      {% if errors.get("password") %}<p class="error">{{ errors["password"] }}</p>{% endif %}
+      <p class="hint">At least {{ min_password }} characters. Nothing is emailed: pass it on yourself.</p>
+    </div>
+    {{ ui.checkbox("is_admin", "Administrator", values, hint="Can change settings and manage accounts.") }}
+    <div class="form-actions"><button class="btn btn-primary" data-busy="Creating…">Create account</button></div>
+  </form>
+</section>
+{% endblock %}

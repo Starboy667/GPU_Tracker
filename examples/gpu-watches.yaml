@@ -1,5 +1,5 @@
-# GPU Watch configuration
-# Discord webhook: put DISCORD_WEBHOOK_URL=... in a .env file next to this one (kept out of git).
+# The watch list of the original gpu_watch.py script, kept as an example.
+# Paste it into Watches > Import (or run `pricewatch import examples/gpu-watches.yaml`).
 
 # Retailers checked by default (each watch can override with its own `sites:` list).
 sites: [ldlc, materiel, topachat, grosbill, alternate, dealabs, idealo]

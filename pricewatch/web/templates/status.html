@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui with context %}
+{% block title %}Status{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Status</h1>
+    <p class="page-meta">
+      {% if busy %}<span class="pulse" aria-hidden="true"></span>Checking prices now…
+      {% elif not scheduler_enabled %}Automatic checks are turned off on this server.
+      {% else %}A check runs about every {{ settings.check_interval_minutes }} minutes{% if next_due %}, next one {{ until(next_due, now) }}{% endif %}.{% endif %}
+    </p>
+  </div>
+  <div class="actions">{{ ui.post_button("/check", "Check now", "btn", "Starting…") }}</div>
+</div>
+
+<section class="section">
+  <div class="section-head">
+    <h2>Shops</h2>
+    <span class="muted">Shops change their pages now and then, which breaks reading them until the scraper is updated.</span>
+  </div>
+  {% if health %}
+  <div class="table-wrap">
+  <table class="table table-stack">
+    <thead><tr><th scope="col">Shop</th><th scope="col">State</th><th scope="col">Last success</th><th scope="col">Latest error</th></tr></thead>
+    <tbody>
+      {% for label, h in health %}
+      <tr>
+        <th scope="row">{{ label }}</th>
+        <td data-label="State">
+          {% if h.consecutive_failures == 0 %}<span class="chip chip-good">Working</span>
+          {% elif h.consecutive_failures < 3 %}<span class="chip chip-warn">Failed {{ h.consecutive_failures }} time{{ "s" if h.consecutive_failures > 1 }}</span>
+          {% else %}<span class="chip chip-bad">Failing, {{ h.consecutive_failures }} checks in a row</span>{% endif %}
+        </td>
+        <td data-label="Last success"><span class="muted">{{ h.last_ok_at|ago(now) }}</span></td>
+        <td data-label="Latest error">{% if h.last_error %}{{ h.last_error }} <span class="muted">{{ h.last_error_at|ago(now) }}</span>{% else %}<span class="muted">None</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="muted">Each shop is listed here after the first scheduled check. Checks you start by hand do not count.</p>
+  {% endif %}
+</section>
+
+<section class="section">
+  <div class="section-head"><h2>Recent checks</h2></div>
+  {% if runs %}
+  <div class="table-wrap">
+  <table class="table table-stack">
+    <thead><tr><th scope="col">Started</th><th scope="col">Result</th><th scope="col" class="num">Watches</th><th scope="col" class="num">Offers</th><th scope="col" class="num">Alerts</th><th scope="col">Problems</th></tr></thead>
+    <tbody>
+      {% for r in runs %}
+      <tr>
+        <td data-label="Started">{{ r.started_at|localtime }} <span class="muted">{{ "on request" if r.trigger == "manual" else "scheduled" }}</span></td>
+        <td data-label="Result">
+          {% if r.status == "ok" %}<span class="chip chip-good">Complete</span>
+          {% elif r.status == "partial" %}<span class="chip chip-warn">Some shops failed</span>
+          {% elif r.status == "running" %}<span class="chip chip-info">Running</span>
+          {% else %}<span class="chip chip-bad">Failed</span>{% endif %}
+        </td>
+        <td class="num" data-label="Watches">{{ r.watches }}</td>
+        <td class="num" data-label="Offers">{{ r.listings }}</td>
+        <td class="num" data-label="Alerts">{{ r.alerts }}</td>
+        <td data-label="Problems">
+          {% if r.errors %}
+          <details class="more more-inline">
+            <summary>{{ r.errors|length }} problem{{ "s" if r.errors|length > 1 }}</summary>
+            <ul class="problem-list">
+              {% for watch_name, site, error in r.errors %}<li>{% if watch_name %}{{ watch_name }}, {% endif %}{% if site %}<strong>{{ site }}</strong>: {% endif %}{{ error }}</li>{% endfor %}
+            </ul>
+          </details>
+          {% else %}<span class="muted">None</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="muted">No check has run yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

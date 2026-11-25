@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui with context %}
+{% block title %}{{ watch.name }}{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/">Watches</a></p>
+<div class="page-head">
+  <div>
+    <h1>{{ watch.name }} {% if not watch.enabled %}<span class="chip chip-muted">Paused</span>{% endif %}</h1>
+    <p class="page-meta">
+      {% if busy %}<span class="pulse" aria-hidden="true"></span>Checking prices now…
+      {% else %}Checked {{ watch.last_checked_at|ago(now) }}{% endif %}
+      · {% if watch.sites %}{% for key in watch.sites %}{{ site_labels.get(key, key) }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
+      {%- if watch.product_urls %}{% if watch.sites %} + {% endif %}{{ watch.product_urls|length }} product page{{ "s" if watch.product_urls|length > 1 }}{% endif %}
+    </p>
+  </div>
+  <div class="actions">
+    {{ ui.post_button("/watches/" ~ watch.id ~ "/check", "Check now", "btn", "Starting…") }}
+    <a class="btn" href="/watches/{{ watch.id }}/edit">Edit</a>
+    {{ ui.post_button("/watches/" ~ watch.id ~ "/toggle", "Resume" if not watch.enabled else "Pause", "btn") }}
+    {{ ui.confirm_delete("/watches/" ~ watch.id ~ "/delete", "Delete", "Delete this watch and its price history? This cannot be undone.", "Yes, delete it") }}
+  </div>
+</div>
+
+{% if watch.last_errors %}
+<div class="notice notice-warn">
+  <p>The last check could not read {{ watch.last_errors|length }} source{{ "s" if watch.last_errors|length > 1 }}. Their earlier offers are kept until they answer again.</p>
+  <ul class="problem-list">
+    {% for site, error in watch.last_errors %}<li><strong>{{ site }}</strong>: {{ error }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<dl class="facts">
+  <div>
+    <dt>Best price now</dt>
+    <dd>{% if best %}<span class="fact-value">{{ best.price|money }}</span> <span class="sub">{{ ui.ext_link(best.url, best.site) }}</span>{% else %}<span class="muted">No offer available</span>{% endif %}</dd>
+  </div>
+  <div>
+    <dt>Usual price</dt>
+    <dd>{% if pricing.baseline %}<span class="fact-value">{{ pricing.baseline.price|money }}</span> <span class="sub">median over {{ pricing.baseline.days }} day{{ "s" if pricing.baseline.days > 1 }}</span>
+      {% else %}<span class="muted">Still learning: {{ pricing.days_until_baseline }} more day{{ "s" if pricing.days_until_baseline > 1 }} of prices needed</span>{% endif %}</dd>
+  </div>
+  <div>
+    <dt>Alert at or under</dt>
+    <dd>{% if pricing.threshold is not none %}<span class="fact-value">{{ pricing.threshold|money }}</span>
+      <span class="sub">{% if watch.max_price is not none and pricing.threshold == watch.max_price %}your target price{% else %}{{ pricing.drop_pct|round(1)|string|replace(".0", "") }} % under usual{% endif %}{% if pricing.in_stock_only %}, in stock{% endif %}</span>
+      {% else %}<span class="muted">Not yet. <a href="/watches/{{ watch.id }}/edit">Set a target price</a> to be alerted right away</span>{% endif %}</dd>
+  </div>
+  <div>
+    <dt>Lowest in {{ chart_days }} days</dt>
+    <dd>{% if lowest %}<span class="fact-value">{{ lowest[1]|money }}</span> <span class="sub">on {{ lowest[0]|calendar_day }}</span>{% else %}<span class="muted">No history yet</span>{% endif %}</dd>
+  </div>
+</dl>
+
+<section class="section">
+  <div class="section-head">
+    <h2>Lowest available price per day</h2>
+    <span class="muted">Last {{ chart_days }} days, shops only (Dealabs posts are left out)</span>
+  </div>
+  {% if charts[0][1] %}
+  <div class="chart" data-chart-root>
+    {% for name, chart in charts %}{{ ui.linechart(chart, name) }}{% endfor %}
+    <div class="chart-tip" data-tip hidden><strong data-tip-value></strong><span data-tip-label></span></div>
+  </div>
+  <details class="more">
+    <summary>Show these prices as a table</summary>
+    <div class="table-wrap">
+    <table class="table table-compact">
+      <thead><tr><th scope="col">Day</th><th scope="col" class="num">Lowest available price</th></tr></thead>
+      <tbody>
+        {% for day, price in lows %}<tr><td>{{ day|calendar_day }}</td><td class="num">{{ price|money }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </details>
+  {% else %}
+  <p class="muted">The chart appears after the first successful check.</p>
+  {% endif %}
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <h2>Offers found</h2>
+    <span class="muted">{{ listings|length }} from the latest checks, cheapest first</span>
+  </div>
+  {% if listings %}
+  <div class="table-wrap">
+  <table class="table table-stack">
+    <thead><tr><th scope="col" class="num">Price</th><th scope="col">Shop</th><th scope="col">Stock</th><th scope="col">Title</th><th scope="col">Seen since</th></tr></thead>
+    <tbody>
+      {% for l in listings %}
+      <tr{% if l.id in deal_ids %} class="is-deal"{% endif %}>
+        <td class="num" data-label="Price"><span class="price">{{ l.price|money }}</span>{% if l.id in deal_ids %} <span class="chip chip-good">Deal</span>{% endif %}</td>
+        <td data-label="Shop">{{ l.site }}</td>
+        <td data-label="Stock">{{ ui.stock(l.in_stock) }}</td>
+        <td data-label="Title">{{ ui.ext_link(l.url, l.title) }}</td>
+        <td data-label="Seen since"><span class="muted">{{ l.first_seen|localday }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% elif watch.last_checked_at %}
+  <p class="notice notice-info">The last check found nothing that matches. <a href="/watches/{{ watch.id }}/edit">Open the editor</a> and use “Test without saving” to see what the shops return and why it is filtered out.</p>
+  {% else %}
+  <p class="muted">Waiting for the first check.</p>
+  {% endif %}
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <h2>Alerts for this watch</h2>
+    <span class="muted">Sent to {% if channel_names %}{{ channel_names|join(", ") }}{% else %}no channel yet{% endif %}</span>
+  </div>
+  {% if alerts %}
+  <ul class="feed">
+    {% for a in alerts %}
+    <li>
+      {{ ui.alert_kind(a.kind) }}
+      <span class="feed-main"><span class="price">{{ a.price|money }}</span> at {{ a.site }}
+        {% if a.baseline %}<span class="muted">· usual {{ a.baseline|money }}</span>{% endif %}
+        <span class="muted">· {{ ui.ext_link(a.url, a.title) }}</span></span>
+      <span class="muted feed-time">{{ a.created_at|localtime }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">None yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

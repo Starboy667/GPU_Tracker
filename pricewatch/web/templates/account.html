@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui with context %}
+{% block title %}My account{% endblock %}
+{% block page_class %} page-medium{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>My account</h1>
+    <p class="page-meta">{{ user.email }} · {{ "Administrator" if user.is_admin else "Member" }}</p>
+  </div>
+</div>
+
+<section class="section">
+  <div class="section-head"><h2>Change password</h2></div>
+  <form method="post" action="/account/password" class="stack form-narrow" novalidate>
+    {{ ui.csrf() }}
+    <input type="text" name="username" value="{{ user.email }}" autocomplete="username" class="visually-hidden" tabindex="-1" aria-hidden="true" readonly>
+    <div class="field{% if errors.get('current_password') %} has-error{% endif %}">
+      <label for="f-current">Current password</label>
+      <input id="f-current" name="current_password" type="password" autocomplete="current-password" required>
+      {% if errors.get("current_password") %}<p class="error">{{ errors["current_password"] }}</p>{% endif %}
+    </div>
+    <div class="field{% if errors.get('new_password') %} has-error{% endif %}">
+      <label for="f-new">New password</label>
+      <input id="f-new" name="new_password" type="password" autocomplete="new-password" required>
+      {% if errors.get("new_password") %}<p class="error">{{ errors["new_password"] }}</p>{% endif %}
+      <p class="hint">At least {{ min_password }} characters. A long phrase is easier to remember than symbols.</p>
+    </div>
+    <div class="field{% if errors.get('confirm_password') %} has-error{% endif %}">
+      <label for="f-confirm">New password, again</label>
+      <input id="f-confirm" name="confirm_password" type="password" autocomplete="new-password" required>
+      {% if errors.get("confirm_password") %}<p class="error">{{ errors["confirm_password"] }}</p>{% endif %}
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" data-busy="Saving…">Change password</button></div>
+    <p class="hint">Changing it signs you out everywhere else.</p>
+  </form>
+</section>
+{% endblock %}

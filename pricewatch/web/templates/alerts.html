@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui with context %}
+{% block title %}Alerts{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Alerts</h1>
+    <p class="page-meta">{{ total }} alert{{ "s" if total != 1 }} in the last 12 months, newest first.</p>
+  </div>
+</div>
+
+{% if not days %}
+<div class="empty">
+  <h2>No alert yet</h2>
+  <p>An alert is recorded when a watched product drops to its alert price, comes back in stock, or when a shop stops answering. Each one is listed here with where it was sent.</p>
+</div>
+{% endif %}
+
+{% for day, items in days %}
+<section class="day">
+  <h2 class="day-title">{{ day }}</h2>
+  <ul class="feed feed-full">
+    {% for a in items %}
+    <li>
+      {{ ui.alert_kind(a.kind) }}
+      <div class="feed-main">
+        {% if a.kind == "health" %}
+          <strong>{{ a.title }}</strong>
+          {% if a.detail %}<span class="sub">{{ a.detail }}</span>{% endif %}
+        {% else %}
+          <strong>{% if a.watch_id %}<a href="/watches/{{ a.watch_id }}">{{ a.watch_name }}</a>{% else %}{{ a.watch_name }}{% endif %}</strong>
+          {% if a.price is not none %}at <span class="price">{{ a.price|money }}</span>{% endif %}
+          <span class="muted">{{ a.site }}</span>
+          <span class="sub">{{ ui.ext_link(a.url, a.title) }}</span>
+          <span class="sub">
+            {% if a.baseline %}Usual {{ a.baseline|money }} ({{ ((a.price / a.baseline - 1) * 100)|percent }}){% endif %}
+            {% if a.target_price is not none %}{% if a.baseline %} · {% endif %}Target {{ a.target_price|money }}{% endif %}
+            {% if a.previous_price is not none %} · Previous alert at {{ a.previous_price|money }}{% endif %}
+          </span>
+        {% endif %}
+        <span class="sub deliveries">
+          {% set sent = deliveries.get(a.id, []) %}
+          {% if not sent %}Not sent anywhere: no channel was set up for it.
+          {% else %}{% for name, status, error in sent %}<span class="delivery delivery-{{ status }}">{{ name }}: {% if status == "sent" %}delivered{% elif status == "pending" %}waiting to retry{% else %}failed{% endif %}{% if error and status != "sent" %} ({{ error }}){% endif %}</span>{% if not loop.last %} · {% endif %}{% endfor %}{% endif %}
+        </span>
+      </div>
+      <span class="muted feed-time">{{ a.created_at|localtime }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endfor %}
+
+{% if pages > 1 %}
+<nav class="pager" aria-label="Pages">
+  {% if page > 1 %}<a class="btn btn-sm" href="/alerts?page={{ page - 1 }}">Newer</a>{% endif %}
+  <span class="muted">Page {{ page }} of {{ pages }}</span>
+  {% if page < pages %}<a class="btn btn-sm" href="/alerts?page={{ page + 1 }}">Older</a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

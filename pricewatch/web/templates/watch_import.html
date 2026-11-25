@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui with context %}
+{% block title %}Import watches{% endblock %}
+{% block page_class %} page-medium{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/">Watches</a></p>
+<h1>Import watches</h1>
+<p class="lead">Paste a YAML export from Price Watch, or the <code>config.yaml</code> of the original GPU script. Watches whose name already exists are skipped, nothing is overwritten.</p>
+{% if problems %}
+<div class="notice notice-error" role="alert">
+  <p>Nothing was imported. Fix {{ "this" if problems|length == 1 else "these" }} and try again:</p>
+  <ul class="problem-list">{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+<form method="post" action="/watches/import" class="stack">
+  {{ ui.csrf() }}
+  <div class="field">
+    <label for="f-yaml">YAML</label>
+    <textarea id="f-yaml" name="yaml" rows="18" class="mono" spellcheck="false" required placeholder="watches:
+  - name: LG OLED55C5
+    sites: [ldlc, materiel, idealo]
+    max_price: 1100">{{ text }}</textarea>
+  </div>
+  <div class="form-actions">
+    <button class="btn btn-primary" data-busy="Importing…">Import</button>
+    <a class="btn btn-quiet" href="/">Cancel</a>
+  </div>
+</form>
+{% endblock %}

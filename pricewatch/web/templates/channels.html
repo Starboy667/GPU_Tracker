@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui with context %}
+{% block title %}Channels{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Channels</h1>
+    <p class="page-meta">Where alerts are sent. A watch uses every channel unless you pick some in its settings.</p>
+  </div>
+</div>
+
+{% if channels %}
+<div class="table-wrap">
+<table class="table table-stack">
+  <thead>
+    <tr><th scope="col">Channel</th><th scope="col">Receives</th><th scope="col">Last delivery</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr>
+  </thead>
+  <tbody>
+    {% for c in channels %}
+    {% set t = types.get(c.type) %}
+    <tr class="{% if not c.enabled %}is-paused{% endif %}">
+      <th scope="row" class="cell-name">
+        <span class="row-title">{{ c.name }}</span>
+        <span class="sub">{{ t.label if t else c.type }}</span>
+        {% if not c.enabled %}<span class="chip chip-muted">Off</span>{% endif %}
+        {% if not c.readable %}<span class="chip chip-bad">Needs its settings again</span>{% endif %}
+      </th>
+      <td data-label="Receives">{% for kind in c.events %}{{ event_labels[kind][0] if kind in event_labels else kind }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+      <td data-label="Last delivery">
+        {% if c.last_error %}<span class="chip chip-bad">Failed</span> <span class="muted">{{ c.last_error_at|ago(now) }}</span><span class="sub error-text">{{ c.last_error }}</span>
+        {% elif c.last_ok_at %}<span class="chip chip-good">Delivered</span> <span class="muted">{{ c.last_ok_at|ago(now) }}</span>
+        {% else %}<span class="muted">Nothing sent yet</span>{% endif %}
+      </td>
+      <td class="cell-actions">
+        {{ ui.post_button("/channels/" ~ c.id ~ "/test", "Send test", "btn btn-sm", "Sending…") }}
+        <a class="btn btn-sm" href="/channels/{{ c.id }}/edit">Edit</a>
+        {{ ui.post_button("/channels/" ~ c.id ~ "/toggle", "Turn on" if not c.enabled else "Turn off", "btn btn-sm") }}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="empty">
+  <h2>No channel yet</h2>
+  <p>Deals are listed in the app either way. Add a channel to be told when one shows up: pick a service below, fill in its details, then send yourself a test.</p>
+</div>
+{% endif %}
+
+<section class="section" id="add">
+  <div class="section-head"><h2>Add a channel</h2></div>
+  <ul class="choices choices-compact">
+    {% for key, t in types.items() %}
+    <li>
+      <a class="choice" href="/channels/new?type={{ key }}">
+        <span class="choice-title">{{ t.label }}</span>
+        <span class="choice-text">{{ t.description }}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

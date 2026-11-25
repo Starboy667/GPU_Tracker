@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui with context %}
+{% block title %}{% if watch %}Edit {{ watch.name }}{% else %}New watch{% endif %}{% endblock %}
+{% block page_class %} page-medium{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/">Watches</a>{% if watch %} / <a href="/watches/{{ watch.id }}">{{ watch.name }}</a>{% endif %}</p>
+<h1>{% if watch %}Edit watch{% else %}New watch{% if preset %}: {{ preset.label|lower }}{% endif %}{% endif %}</h1>
+
+{% if errors %}
+<p class="notice notice-error" role="alert">{% if errors.get("") %}{{ errors[""] }}{% else %}Nothing was saved yet: {{ errors|length }} field{{ "s need" if errors|length > 1 else " needs" }} a correction below.{% endif %}</p>
+{% endif %}
+
+<form method="post" action="{% if watch %}/watches/{{ watch.id }}{% else %}/watches{% endif %}" class="form" novalidate>
+  {{ ui.csrf() }}
+  {% if watch %}<input type="hidden" name="watch_id" value="{{ watch.id }}">{% endif %}
+  {% if preset %}<input type="hidden" name="preset" value="{{ preset.key }}">{% endif %}
+
+  <section class="form-section">
+    <div class="form-aside">
+      <h2>Product</h2>
+      <p>The name is also what gets typed into each shop's search box.</p>
+    </div>
+    <div class="form-body">
+      {{ ui.field("name", "Name", values, errors, required=true, placeholder=(preset.example if preset else "")) }}
+      <details class="more"{% if values.get("query") or values.get("match") or errors.get("query") or errors.get("match") %} open{% endif %}>
+        <summary>Search with different words, or match titles differently</summary>
+        {{ ui.field("query", "Search text", values, errors, hint="What to type in the shops' search. Leave empty to use the name.") }}
+        {{ ui.field("match", "A title must match", values, errors, mono=true, placeholder=auto_match,
+            hint="Regular expression, case-insensitive. Leave empty to build it from the name: the same words in order, spaces optional. For graphics cards this also rejects the Ti, Super and XT variants.") }}
+      </details>
+    </div>
+  </section>
+
+  <section class="form-section">
+    <div class="form-aside">
+      <h2>Shops to search</h2>
+      <p>Each selected shop is searched at every check. Results are filtered by title, so extra shops only cost time.</p>
+    </div>
+    <div class="form-body">
+      {% if errors.get("sites") %}<p class="error" role="alert">{{ errors["sites"] }}</p>{% endif %}
+      <ul class="site-list">
+        {% for s in sites %}
+        {% set url_name = "url_" ~ s.key %}
+        <li>
+          {{ ui.checkbox("site_" ~ s.key, s.label, values, hint=s.description) }}
+          <details class="more site-url"{% if values.get(url_name) or errors.get(url_name) %} open{% endif %}>
+            <summary>Use a specific page instead of the search</summary>
+            {{ ui.field(url_name, "Page address", values, errors, type="url", mono=true, hint=s.url_help) }}
+          </details>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
+
+  <section class="form-section">
+    <div class="form-aside">
+      <h2>Product pages</h2>
+      <p>Follow the exact page of a product on any shop. Works when the page publishes its price in a standard way, which most shops do.</p>
+    </div>
+    <div class="form-body">
+      <div class="field{% if errors.get('product_urls') %} has-error{% endif %}">
+        <label for="f-product_urls">Page addresses <span class="optional">optional</span></label>
+        <textarea id="f-product_urls" name="product_urls" rows="3" class="mono" spellcheck="false" placeholder="https://www.boulanger.com/ref/1234567">{{ values.get("product_urls", "") }}</textarea>
+        {% if errors.get("product_urls") %}<p class="error">{{ errors["product_urls"] }}</p>{% endif %}
+        <p class="hint">One address per line. If the price is not found, add the CSS selector of the price after a bar, for example
+          <code>https://www.amazon.fr/dp/B0… | .a-price .a-offscreen</code>. Darty, Fnac and Cdiscount block this: use Idealo for them.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="form-section">
+    <div class="form-aside">
+      <h2>Filters</h2>
+      <p>Keep accessories, bundles and used items out of the results. Not applied to product pages.</p>
+    </div>
+    <div class="form-body">
+      {{ ui.field("exclude", "Ignore titles matching", values, errors, mono=true,
+          hint="Regular expression, case-insensitive. Alternatives are separated by a bar: occasion|reconditionn|bundle") }}
+      {{ ui.field("min_price", "Ignore anything cheaper than", values, errors, suffix="€", inputmode="decimal",
+          hint="A quick way to drop cables, cases and other accessories.") }}
+    </div>
+  </section>
+
+  <section class="form-section">
+    <div class="form-aside">
+      <h2>When to alert</h2>
+      <p>By default a deal is a price at least {{ settings.deal_drop_pct|round(1)|string|replace(".0", "") }} % under the usual price, which is learned
+        from the last {{ settings.baseline_days }} days. A target price works from the first check.</p>
+    </div>
+    <div class="form-body">
+      <div class="field-row">
+        {{ ui.field("max_price", "Target price", values, errors, suffix="€", inputmode="decimal",
+            hint="Always alert at or under this price.") }}
+        {{ ui.field("deal_drop_pct", "Drop under the usual price", values, errors, suffix="%", inputmode="decimal",
+            placeholder=(settings.deal_drop_pct|round(1)|string|replace(".0", "")),
+            hint="Leave empty to use the global setting.") }}
+      </div>
+      <div class="field{% if errors.get('stock_rule') %} has-error{% endif %}">
+        <label for="f-stock_rule">Stock</label>
+        <select id="f-stock_rule" name="stock_rule">
+          <option value="default"{% if values.get("stock_rule", "default") == "default" %} selected{% endif %}>Global setting ({{ "in stock only" if settings.in_stock_only else "any stock" }})</option>
+          <option value="in_stock"{% if values.get("stock_rule") == "in_stock" %} selected{% endif %}>Only alert when it is, or may be, in stock</option>
+          <option value="any"{% if values.get("stock_rule") == "any" %} selected{% endif %}>Alert even when it is out of stock</option>
+        </select>
+      </div>
+      {{ ui.checkbox("notify_restock", "Also alert when it comes back in stock", values,
+          hint="Whatever the price. Useful for products that sell out, like consoles at launch.") }}
+    </div>
+  </section>
+
+  <section class="form-section">
+    <div class="form-aside">
+      <h2>Where to send alerts</h2>
+      <p>{% if channels %}Channels are managed on the <a href="/channels">Channels</a> page.{% else %}No channel exists yet. Alerts will still be listed in the app; <a href="/channels">add a channel</a> to receive them.{% endif %}</p>
+    </div>
+    <div class="form-body">
+      <fieldset class="options" data-channel-picker>
+        <legend class="visually-hidden">Channels for this watch</legend>
+        <label class="check">
+          <input type="radio" name="channels_mode" value="all"{% if values.get("channels_mode", "all") != "selected" %} checked{% endif %}>
+          <span><span class="check-label">Every channel</span><span class="hint">Including the ones you add later.</span></span>
+        </label>
+        <label class="check">
+          <input type="radio" name="channels_mode" value="selected"{% if values.get("channels_mode") == "selected" %} checked{% endif %}{% if not channels %} disabled{% endif %}>
+          <span><span class="check-label">Only these</span></span>
+        </label>
+        {% if channels %}
+        <div class="options-nested" data-channel-list>
+          {% for c in channels %}
+          {{ ui.checkbox("channel_" ~ c.id, c.name, values, hint=("Turned off" if not c.enabled else "")) }}
+          {% endfor %}
+        </div>
+        {% endif %}
+      </fieldset>
+      {{ ui.checkbox("enabled", "Check this watch automatically", values, hint="Untick to pause it without losing its history.") }}
+    </div>
+  </section>
+
+  <div class="form-actions">
+    <button class="btn btn-primary" data-busy="Saving…">{% if watch %}Save changes{% else %}Create watch{% endif %}</button>
+    <button class="btn" formaction="/watches/preview#preview" data-busy="Asking the shops, up to a minute…">Test without saving</button>
+    <a class="btn btn-quiet" href="{% if watch %}/watches/{{ watch.id }}{% else %}/{% endif %}">Cancel</a>
+  </div>
+</form>
+
+{% if preview %}
+<section class="section" id="preview" aria-live="polite">
+  <h2>Test result</h2>
+  {% if preview.timed_out %}
+  <p class="notice notice-warn">The shops took too long to answer. Try again, or select fewer shops.</p>
+  {% else %}
+  {% set scan = preview.scan %}
+  {% set pricing = preview.pricing %}
+  <p class="lead">
+    {{ scan.accepted|length }} offer{{ "s" if scan.accepted|length != 1 }} would be part of this watch,
+    {{ scan.rejected|length }} {{ "was" if scan.rejected|length == 1 else "were" }} filtered out.
+    {% if pricing.threshold is not none %}An alert would go out at {{ pricing.threshold|money }} or less.
+    {% else %}No alert threshold yet: set a target price, or wait for the usual price to be learned.{% endif %}
+    Nothing was saved.
+  </p>
+  {% if scan.errors %}
+  <ul class="problem-list">
+    {% for site, error in scan.errors %}<li><strong>{{ site }}</strong> failed: {{ error }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  {% if scan.accepted %}
+  <div class="table-wrap">
+  <table class="table table-stack">
+    <thead><tr><th scope="col" class="num">Price</th><th scope="col">Shop</th><th scope="col">Stock</th><th scope="col">Title</th></tr></thead>
+    <tbody>
+      {% for l in scan.accepted %}
+      <tr>
+        <td class="num" data-label="Price"><span class="price">{{ l.price|money }}</span>{% if pricing.threshold is not none and l.price <= pricing.threshold %} <span class="chip chip-good">Deal</span>{% endif %}</td>
+        <td data-label="Shop">{{ l.site }}</td>
+        <td data-label="Stock">{{ ui.stock(l.in_stock) }}</td>
+        <td data-label="Title">{{ ui.ext_link(l.url, l.title) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% elif not scan.errors %}
+  <p class="notice notice-info">No offer matched. Loosen the title match or the filters, or check the search text.</p>
+  {% endif %}
+  {% if scan.rejected %}
+  <details class="more">
+    <summary>Show the {{ scan.rejected|length }} filtered out, and why</summary>
+    <div class="table-wrap">
+    <table class="table table-stack">
+      <thead><tr><th scope="col">Why</th><th scope="col" class="num">Price</th><th scope="col">Shop</th><th scope="col">Title</th></tr></thead>
+      <tbody>
+        {% for l, reason in scan.rejected[:150] %}
+        <tr>
+          <td data-label="Why">{{ reason|capitalize }}</td>
+          <td class="num" data-label="Price">{{ l.price|money }}</td>
+          <td data-label="Shop">{{ l.site }}</td>
+          <td data-label="Title">{{ ui.ext_link(l.url, l.title) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </details>
+  {% endif %}
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

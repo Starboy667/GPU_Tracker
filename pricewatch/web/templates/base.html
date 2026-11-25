@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="robots" content="noindex, nofollow">
+  {% if refresh %}<meta http-equiv="refresh" content="6">{% endif %}
+  <title>{% block title %}{% endblock %} · Price Watch</title>
+  <link rel="stylesheet" href="/static/app.css?v={{ static_version }}">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <script src="/static/app.js?v={{ static_version }}" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  {% if user %}
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="/">Price Watch</a>
+      <nav class="nav" aria-label="Main">
+        <a href="/"{% if nav == "watches" %} aria-current="page"{% endif %}>Watches</a>
+        <a href="/alerts"{% if nav == "alerts" %} aria-current="page"{% endif %}>Alerts</a>
+        <a href="/channels"{% if nav == "channels" %} aria-current="page"{% endif %}>Channels</a>
+        <a href="/status"{% if nav == "status" %} aria-current="page"{% endif %}>Status</a>
+        {% if user.is_admin %}<a href="/settings"{% if nav == "settings" %} aria-current="page"{% endif %}>Settings</a>{% endif %}
+      </nav>
+      <div class="topbar-end">
+        <a class="account-link" href="/account"{% if nav == "account" %} aria-current="page"{% endif %}>{{ user.email }}</a>
+        <form method="post" action="/logout" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn btn-quiet btn-sm">Sign out</button>
+        </form>
+      </div>
+    </div>
+  </header>
+  {% endif %}
+  <main id="main" class="page{% block page_class %}{% endblock %}">
+    {% for kind, message in flashes %}
+    <p class="notice notice-{{ kind }}" role="{{ 'alert' if kind == 'error' else 'status' }}">{{ message }}</p>
+    {% endfor %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

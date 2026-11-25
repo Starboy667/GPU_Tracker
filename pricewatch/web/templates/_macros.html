@@ -1,0 +1,103 @@
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% endmacro %}
+
+{# A plain text-like input with label, hint and error. #}
+{% macro field(name, label, values, errors, type="text", hint="", placeholder="", suffix="", required=false, autocomplete="", inputmode="", mono=false) %}
+<div class="field{% if errors.get(name) %} has-error{% endif %}">
+  <label for="f-{{ name }}">{{ label }}{% if not required and type != "password" %} <span class="optional">optional</span>{% endif %}</label>
+  <div class="control{% if suffix %} with-suffix{% endif %}">
+    <input id="f-{{ name }}" name="{{ name }}" type="{{ type }}" value="{% if type != 'password' %}{{ values.get(name, '') }}{% endif %}"
+      {%- if placeholder %} placeholder="{{ placeholder }}"{% endif %}
+      {%- if required %} required{% endif %}
+      {%- if autocomplete %} autocomplete="{{ autocomplete }}"{% endif %}
+      {%- if inputmode %} inputmode="{{ inputmode }}"{% endif %}
+      {%- if mono %} class="mono" spellcheck="false" autocapitalize="off"{% endif %}
+      {%- if errors.get(name) %} aria-invalid="true" aria-describedby="e-{{ name }}"{% elif hint %} aria-describedby="h-{{ name }}"{% endif %}>
+    {%- if suffix %}<span class="suffix" aria-hidden="true">{{ suffix }}</span>{% endif %}
+  </div>
+  {% if errors.get(name) %}<p class="error" id="e-{{ name }}">{{ errors[name] }}</p>{% endif %}
+  {% if hint %}<p class="hint" id="h-{{ name }}">{{ hint }}</p>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro checkbox(name, label, values, hint="") %}
+<label class="check">
+  <input type="checkbox" name="{{ name }}" {% if values.get(name) %}checked{% endif %}>
+  <span><span class="check-label">{{ label }}</span>{% if hint %}<span class="hint">{{ hint }}</span>{% endif %}</span>
+</label>
+{% endmacro %}
+
+{# A one-button form: every state change is a POST with a CSRF token. #}
+{% macro post_button(action, label, cls="btn", busy="") %}
+<form method="post" action="{{ action }}" class="inline-form">{{ csrf() }}<button class="{{ cls }}"{% if busy %} data-busy="{{ busy }}"{% endif %}>{{ label }}</button></form>
+{% endmacro %}
+
+{# Inline confirmation instead of a modal: the destructive button only appears once opened. #}
+{% macro confirm_delete(action, label, question, confirm_label) %}
+<details class="confirm">
+  <summary class="btn btn-danger">{{ label }}</summary>
+  <form method="post" action="{{ action }}" class="confirm-body">
+    {{ csrf() }}
+    <p>{{ question }}</p>
+    <button class="btn btn-danger-solid">{{ confirm_label }}</button>
+  </form>
+</details>
+{% endmacro %}
+
+{% macro stock(in_stock) %}
+{%- if in_stock is true %}<span class="stock stock-yes">In stock</span>
+{%- elif in_stock is false %}<span class="stock stock-no">Out of stock</span>
+{%- else %}<span class="stock stock-unknown">Stock unknown</span>{% endif %}
+{% endmacro %}
+
+{% macro state_chip(state) %}
+{%- if state == "deal" %}<span class="chip chip-good">Deal</span>
+{%- elif state == "paused" %}<span class="chip chip-muted">Paused</span>
+{%- elif state == "waiting" %}<span class="chip chip-muted">First check pending</span>
+{%- elif state == "empty" %}<span class="chip chip-warn">Nothing found</span>
+{%- endif %}
+{% endmacro %}
+
+{% macro alert_kind(kind) %}
+{%- if kind == "deal" %}<span class="chip chip-good">Deal</span>
+{%- elif kind == "restock" %}<span class="chip chip-info">Back in stock</span>
+{%- elif kind == "health" %}<span class="chip chip-warn">Scraper</span>
+{%- else %}<span class="chip chip-muted">{{ kind }}</span>{% endif %}
+{% endmacro %}
+
+{% macro ext_link(url, text) %}
+{%- set href = url|http_url %}
+{%- if href %}<a href="{{ href }}" target="_blank" rel="noopener noreferrer">{{ text }}</a>{% else %}{{ text }}{% endif %}
+{% endmacro %}
+
+{% macro sparkline(s) %}
+{%- if s %}<svg class="spark" viewBox="0 0 {{ s.width }} {{ s.height }}" width="{{ s.width }}" height="{{ s.height }}" role="img" aria-label="{{ s.summary }}"><title>{{ s.summary }}</title><path d="{{ s.path }}"/><circle cx="{{ s.end_x }}" cy="{{ s.end_y }}" r="3"/></svg>
+{%- else %}<span class="muted">Not enough history</span>{% endif %}
+{% endmacro %}
+
+{% macro linechart(c, cls) %}
+{%- set hover = [] %}
+{%- for p in c.points %}{% set _ = hover.append({"x": p.x, "y": p.y, "d": p.label, "v": p.text}) %}{% endfor %}
+<svg class="linechart {{ cls }}" viewBox="0 0 {{ c.width }} {{ c.height }}" role="img" aria-label="{{ c.summary }}" data-chart data-points='{{ hover|tojson }}'>
+  <g class="grid">
+    {%- for t in c.y_ticks %}<line x1="{{ c.left }}" x2="{{ c.right }}" y1="{{ t.pos }}" y2="{{ t.pos }}"/>{% endfor %}
+  </g>
+  <line class="axis" x1="{{ c.left }}" x2="{{ c.right }}" y1="{{ c.bottom }}" y2="{{ c.bottom }}"/>
+  <g class="tick-labels">
+    {%- for t in c.y_ticks %}<text x="{{ c.left - 8 }}" y="{{ t.pos + 4 }}" text-anchor="end">{{ t.label }}</text>{% endfor %}
+    {%- for t in c.x_ticks %}<text x="{{ t.pos }}" y="{{ c.bottom + 19 }}" text-anchor="{{ t.anchor }}">{{ t.label }}</text>{% endfor %}
+  </g>
+  {%- for r in c.ref_lines %}
+  <line class="ref ref-{{ r.key }}" x1="{{ c.left }}" x2="{{ c.right }}" y1="{{ r.y }}" y2="{{ r.y }}"/>
+  <text class="ref-label" x="{{ r.label_x }}" y="{{ r.label_y }}" text-anchor="{{ r.label_anchor }}">{{ r.label }}</text>
+  {%- endfor %}
+  {% if c.path %}<path class="series" d="{{ c.path }}"/>{% endif %}
+  {%- for p in c.lone_points %}<circle class="series-dot" cx="{{ p.x }}" cy="{{ p.y }}" r="2.5"/>{% endfor %}
+  <circle class="end-dot" cx="{{ c.last.x }}" cy="{{ c.last.y }}" r="4.5"/>
+  <text class="end-label" x="{{ c.end_label_x }}" y="{{ c.end_label_y }}" text-anchor="{{ c.end_label_anchor }}">{{ c.last.text }}</text>
+  <g class="hover" data-hover hidden>
+    <line class="crosshair" y1="{{ c.top }}" y2="{{ c.bottom }}"/>
+    <circle class="hover-dot" r="4.5"/>
+  </g>
+  <rect class="hit" data-hit x="{{ c.left }}" y="{{ c.top }}" width="{{ c.right - c.left }}" height="{{ c.bottom - c.top }}" tabindex="0" aria-label="Explore the values with the arrow keys"/>
+</svg>
+{% endmacro %}

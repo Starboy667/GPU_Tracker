@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Add a watch{% endblock %}
+{% block page_class %} page-medium{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/">Watches</a></p>
+<h1>What do you want to watch?</h1>
+<p class="lead">This only fills in sensible filters to start from. You can change everything on the next screen.</p>
+<ul class="choices">
+  {% for p in presets %}
+  <li>
+    <a class="choice" href="/watches/new?preset={{ p.key }}">
+      <span class="choice-title">{{ p.label }}</span>
+      <span class="choice-text">{{ p.description }}</span>
+      <span class="choice-example">For example: {{ p.example }}</span>
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+<p class="muted">Already have a list? <a href="/watches/import">Import it from YAML</a>, including the config.yaml of the original GPU script.</p>
+{% endblock %}

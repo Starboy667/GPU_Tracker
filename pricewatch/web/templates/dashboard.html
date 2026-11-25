@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui with context %}
+{% block title %}Watches{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Watches</h1>
+    <p class="page-meta">
+      {% if busy %}<span class="pulse" aria-hidden="true"></span>Checking prices now…
+      {% elif last_run %}Last check {{ last_run.started_at|ago(now) }}{% if last_run.status == "partial" %}, <a href="/status">some shops failed</a>{% elif last_run.status == "failed" %}, <a href="/status">it failed</a>{% endif %}{% if next_due %} · next {{ until(next_due, now) }}{% endif %}
+      {% else %}No check has run yet{% if next_due %} · first one {{ until(next_due, now) }}{% endif %}{% endif %}
+    </p>
+  </div>
+  <div class="actions">
+    {% if rows %}{{ ui.post_button("/check", "Check now", "btn", "Starting…") }}{% endif %}
+    <a class="btn btn-primary" href="/watches/new">Add a watch</a>
+  </div>
+</div>
+
+{% if failing %}
+<p class="notice notice-warn">
+  {% for label, h in failing %}{{ label }}{% if not loop.last %}, {% endif %}{% endfor %}
+  {{ "has" if failing|length == 1 else "have" }} failed several checks in a row. <a href="/status">See what is wrong</a>
+</p>
+{% endif %}
+{% if rows and not channel_count %}
+<p class="notice notice-info">Deals show up here, but nothing is sent to you yet. <a href="/channels">Add a notification channel</a></p>
+{% endif %}
+
+{% if not rows %}
+<div class="empty">
+  <h2>Nothing is being watched yet</h2>
+  <p>A watch is one product you want to buy at the right price. Price Watch looks it up in the shops every
+    {{ settings.check_interval_minutes }} minutes, learns its usual price over a few days, and alerts you when it drops.</p>
+  <p class="actions actions-center">
+    <a class="btn btn-primary" href="/watches/new">Add your first watch</a>
+    <a class="btn" href="/watches/import">Import a list</a>
+  </p>
+</div>
+{% else %}
+<div class="table-wrap">
+<table class="table table-stack watches">
+  <thead>
+    <tr>
+      <th scope="col">Product</th>
+      <th scope="col" class="num">Best price now</th>
+      <th scope="col" class="num">Usual price</th>
+      <th scope="col" class="num">Alert at</th>
+      <th scope="col">Last {{ 30 }} days</th>
+      <th scope="col">Checked</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    {% set w = row.watch %}
+    <tr class="{% if row.state == 'paused' %}is-paused{% endif %}{% if row.state == 'deal' %} is-deal{% endif %}">
+      <th scope="row" class="cell-name">
+        <a class="row-link" href="/watches/{{ w.id }}">{{ w.name }}</a>
+        {{ ui.state_chip(row.state) }}
+        {% if w.last_errors and row.state != "paused" %}<span class="chip chip-warn" title="{% for site, error in w.last_errors %}{{ site }}: {{ error }}{% if not loop.last %} · {% endif %}{% endfor %}">{{ w.last_errors|length }} shop{{ "s" if w.last_errors|length > 1 }} failed</span>{% endif %}
+      </th>
+      <td class="num" data-label="Best price now">
+        {% if row.best %}
+          <span class="cell-main"><span class="price">{{ row.best.price|money }}</span>
+          {%- if row.delta_pct is not none and (row.delta_pct <= -0.5 or row.delta_pct >= 0.5) %}<span class="delta {{ 'delta-down' if row.delta_pct < 0 else 'delta-up' }}" title="Compared with the usual price">{{ row.delta_pct|percent }}</span>{% endif %}</span>
+          <span class="sub">{{ ui.ext_link(row.best.url, row.best.site) }}</span>
+        {% else %}<span class="muted">No offer</span>{% endif %}
+      </td>
+      <td class="num" data-label="Usual price">
+        {% if row.pricing.baseline %}{{ row.pricing.baseline.price|money }}
+        {% elif row.state == "paused" %}<span class="muted">Paused</span>
+        {% else %}<span class="muted">Learning, {{ row.pricing.days_until_baseline }} more day{{ "s" if row.pricing.days_until_baseline > 1 }}</span>{% endif %}
+      </td>
+      <td class="num" data-label="Alert at">
+        {% if row.pricing.threshold is not none %}{{ row.pricing.threshold|money }}{% else %}<span class="muted">Not yet</span>{% endif %}
+      </td>
+      <td data-label="Last 30 days">{{ ui.sparkline(row.spark) }}</td>
+      <td data-label="Checked"><span class="muted">{{ w.last_checked_at|ago(now) }}</span></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="table-foot muted">
+  {{ rows|length }} watch{{ "es" if rows|length != 1 }} ·
+  <a href="/watches/import">Import</a> · <a href="/watches/export.yaml">Export as YAML</a>
+</p>
+
+<section class="section">
+  <div class="section-head">
+    <h2>Latest alerts</h2>
+    {% if recent_alerts %}<a href="/alerts">All alerts</a>{% endif %}
+  </div>
+  {% if recent_alerts %}
+  <ul class="feed">
+    {% for a in recent_alerts %}
+    <li>
+      {{ ui.alert_kind(a.kind) }}
+      <span class="feed-main">
+        {% if a.kind == "health" %}{{ a.title }}
+        {% else %}<strong>{{ a.watch_name }}</strong> {% if a.price is not none %}at <span class="price">{{ a.price|money }}</span>{% endif %}
+          <span class="muted">{{ ui.ext_link(a.url, a.site) }}</span>{% endif %}
+      </span>
+      <span class="muted feed-time">{{ a.created_at|ago(now) }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No alert so far. The first ones can come as soon as a product has {{ settings.baseline_min_days }} days of price history, or right away if you set a target price.</p>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}
