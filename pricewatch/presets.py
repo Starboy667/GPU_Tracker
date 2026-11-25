@@ -17,7 +17,15 @@ GPU_EXCLUDE = (
 # Accessories and bundles that share a TV's model name.
 TV_EXCLUDE = r"support|\bpied|c[âa]ble|t[ée]l[ée]commande|barre de son|\+|" + USED_GOODS
 
+# What a PC player rarely wants from a key comparator: console versions, accounts instead of keys,
+# boxed or second-hand copies, gifts tied to a region. Remove a word to let that kind back in.
+PC_GAME_EXCLUDE = (
+    r"PlayStation|\bPS[45]\b|Xbox|Switch|Nintendo|Vente de compte|\bcompte\b|\bGift\b|boîte|Occasion|"
+    r"Rest of World|\[DLC\]|\[extra\]"
+)
+
 ALL_SITES = ("ldlc", "materiel", "topachat", "grosbill", "alternate", "idealo", "dealabs")
+GAME_SITES = ("steam", "dlcompare")
 GENERAL_SITES = ("ldlc", "materiel", "idealo")
 
 
@@ -62,6 +70,14 @@ PRESETS: tuple[Preset, ...] = (
         exclude=TV_EXCLUDE,
         min_price=100,
         site_urls=MappingProxyType({"dealabs": DEALABS_TV_FEED}),
+    ),
+    Preset(
+        key="game",
+        label="Video game (PC)",
+        description="Steam's own price next to the key shops compared by DLCompare, without consoles, accounts and boxed copies.",
+        example="Elden Ring",
+        sites=GAME_SITES,
+        exclude=PC_GAME_EXCLUDE,
     ),
     Preset(
         key="page",

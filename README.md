@@ -6,6 +6,8 @@ that follows any product, behind a login, with alerts on the channels you choose
 
 - **Any product**: search LDLC, Materiel.net, TopAchat, Grosbill, Alternate, Idealo and Dealabs by
   name, or follow the exact page of a product on any shop that publishes its price in a standard way.
+- **Video games**: Steam's own price, and every key-shop offer listed by DLCompare (Instant Gaming,
+  Eneba, Kinguin, G2A...), filtered by platform, edition and region.
 - **No target price needed**: it learns each product's usual price and alerts on a real drop. A
   fixed target price and back-in-stock alerts are there when you want them.
 - **Alerts where you read them**: Discord, Telegram, email, generic webhook, Slack (and
@@ -92,6 +94,21 @@ Notes on the sources:
   you add after the address (`https://www.amazon.fr/dp/... | .a-price .a-offscreen`). Tested from a
   home connection: LDLC, Materiel.net, Boulanger, Rue du Commerce and Son-Vidéo work; Amazon needs
   the selector; Darty, Fnac and Cdiscount block it, follow them through Idealo instead.
+
+- **Steam** is read through the JSON endpoints of its store (French prices). Searching a name
+  returns the game alone when a result bears exactly that name; otherwise give the store page
+  (`https://store.steampowered.com/app/1245620/ELDEN_RING/`) so DLC and sequels stay out.
+- **DLCompare** lists hundreds of offers per game. Each becomes a line such as
+  `Elden Ring - Steam (PC) - Standard Edition - Europe - code SEAL17DLC`, with `[DLC]` or `[extra]`
+  after the name when it is not the game itself, `Vente de compte` for accounts, `boîte` for boxed
+  copies. The "Video game (PC)" preset filters consoles, accounts, gifts, boxes, DLC and
+  "Rest of World" keys out; edit its exclude pattern to let some back in. Prices include the
+  shop's payment fees; a `code` in the title is the coupon that price assumes. Like Idealo, this
+  goes against the site's terms: keep the interval long. The game's page address is more exact
+  than its name.
+- Not supported: GoCléCD / AllKeyShop (answers 429 to automated requests) and Instant Gaming's
+  search (rendered in the browser; its product pages work with the product-page tracker from a
+  home connection, not from every server address).
 
 Do not go below about 15 minutes between checks: the shops will block you.
 

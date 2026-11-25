@@ -21,7 +21,7 @@ from pricewatch.forms import (
     MIN_DROP_PCT,
 )
 from pricewatch.models import ProductURL, Watch
-from pricewatch.presets import DEALABS_GPU_FEED
+from pricewatch.presets import ALL_SITES, DEALABS_GPU_FEED
 
 EXPORT_VERSION = 2
 MAX_IMPORT_BYTES = 200_000
@@ -94,7 +94,8 @@ def import_yaml(
     known = tuple(site_keys)
     legacy = doc.get("version") != EXPORT_VERSION
     defaults = doc.get("defaults") if isinstance(doc.get("defaults"), dict) else {}
-    default_sites = doc.get("sites") if isinstance(doc.get("sites"), list) else list(known)
+    # A document without `sites:` is the original script's: it only knew the hardware shops.
+    default_sites = doc.get("sites") if isinstance(doc.get("sites"), list) else [s for s in ALL_SITES if s in known]
     problems: list[str] = []
     watches: list[Watch] = []
     seen: set[str] = set()

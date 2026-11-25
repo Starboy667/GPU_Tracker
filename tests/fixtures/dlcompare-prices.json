@@ -1,0 +1,400 @@
+{
+ "priceListData": {
+  "platforms": {
+   "171": {
+    "title": "Xbox Series X|S",
+    "support": "Xbox Series X|S",
+    "supportSlug": "xbox-series-x-s",
+    "type": "Global",
+    "family": "Xbox Live",
+    "isVisible": true,
+    "showTitle": false
+   },
+   "2": {
+    "title": "Steam",
+    "support": "PC",
+    "supportSlug": "pc",
+    "type": "Global",
+    "family": "Steam",
+    "isVisible": true,
+    "showTitle": false
+   },
+   "169": {
+    "title": "PlayStation 5",
+    "support": "PS5",
+    "supportSlug": "ps5",
+    "type": "Global",
+    "family": "Sony PSN",
+    "isVisible": true,
+    "showTitle": false
+   },
+   "27": {
+    "title": "PlayStation 4",
+    "support": "PS4",
+    "supportSlug": "ps4",
+    "type": "Global",
+    "family": "Sony PSN",
+    "isVisible": true,
+    "showTitle": false
+   },
+   "61": {
+    "title": "Gift",
+    "support": "PC",
+    "supportSlug": "pc",
+    "type": "Global",
+    "family": "Steam gift",
+    "isVisible": false,
+    "showTitle": true,
+    "altTitle": "Ce cadeau Steam vous permet d'activer des jeux directement dans votre bibliothèque ou d'ajouter des fonds à votre porte-monnaie Steam. Récupérez votre cadeau dès maintenant pour commencer à jouer ou effectuer votre prochain achat !"
+   }
+  },
+  "shops": {
+   "210": {
+    "id": 210,
+    "name": "Difmark",
+    "slug": "difmark"
+   },
+   "103": {
+    "id": 103,
+    "name": "Kinguin",
+    "slug": "kinguin"
+   },
+   "285": {
+    "id": 285,
+    "name": "K4G",
+    "slug": "k4g"
+   },
+   "350": {
+    "id": 350,
+    "name": "GAMESEAL",
+    "slug": "gameseal"
+   },
+   "28": {
+    "id": 28,
+    "name": "Cdiscount",
+    "slug": "cdiscount"
+   },
+   "30": {
+    "id": 30,
+    "name": "Cultura",
+    "slug": "cultura"
+   },
+   "137": {
+    "id": 137,
+    "name": "LOADED",
+    "slug": "loaded"
+   }
+  },
+  "specials": {
+   "220": {
+    "color": "d65c5c",
+    "title": "Vente de compte",
+    "isFilter": true
+   },
+   "1": {
+    "color": null,
+    "title": "Standard Edition",
+    "isFilter": true
+   },
+   "1683": {
+    "color": null,
+    "title": "Shadow of the Erdtree Edition",
+    "isFilter": true
+   }
+  },
+  "prices": [
+   {
+    "id": 15505563,
+    "shopId": 350,
+    "platformId": 2,
+    "finalPrice": "31.15",
+    "feePrices": {
+     "2": "35.02",
+     "1": "35.17"
+    },
+    "box": false,
+    "isAccountSelling": false,
+    "isHighlighted": false,
+    "objectId": 100007044,
+    "objectType": "game",
+    "objectName": "Elden Ring",
+    "objectImg": "",
+    "forHardware": false,
+    "condition": 1,
+    "conditionLabel": null,
+    "unavailableLabel": null,
+    "isSuspicious": false,
+    "crossedPrice": "37.53",
+    "discountPercent": "17%",
+    "discountCode": "SEAL17DLC",
+    "discountPayback": false,
+    "specialIds": [
+     1
+    ],
+    "displayRegion": "Europe",
+    "regionId": 2,
+    "extraId": null
+   },
+   {
+    "id": 24201735,
+    "shopId": 137,
+    "platformId": 2,
+    "finalPrice": "35.99",
+    "feePrices": [],
+    "box": false,
+    "isAccountSelling": false,
+    "isHighlighted": false,
+    "objectId": 100007044,
+    "objectType": "game",
+    "objectName": "Elden Ring",
+    "objectImg": "",
+    "forHardware": false,
+    "condition": 1,
+    "conditionLabel": null,
+    "unavailableLabel": null,
+    "isSuspicious": false,
+    "specialIds": [
+     1
+    ],
+    "displayRegion": "EMEA",
+    "regionId": 8,
+    "extraId": null
+   },
+   {
+    "id": 22330736,
+    "shopId": 210,
+    "platformId": 2,
+    "finalPrice": "12.15",
+    "feePrices": {
+     "2": "12.79",
+     "1": "12.79"
+    },
+    "box": false,
+    "isAccountSelling": true,
+    "isHighlighted": true,
+    "objectId": 100007044,
+    "objectType": "game",
+    "objectName": "Elden Ring",
+    "objectImg": "",
+    "forHardware": false,
+    "condition": 1,
+    "conditionLabel": null,
+    "unavailableLabel": null,
+    "isSuspicious": false,
+    "crossedPrice": "14.29",
+    "discountPercent": "15%",
+    "discountCode": "dlcompare",
+    "discountPayback": false,
+    "specialIds": [
+     220
+    ],
+    "displayRegion": "Global",
+    "regionId": 1,
+    "extraId": null
+   },
+   {
+    "id": 10612169,
+    "shopId": 103,
+    "platformId": 61,
+    "finalPrice": "42.55",
+    "feePrices": {
+     "2": "46.07",
+     "1": "46.08"
+    },
+    "box": false,
+    "isAccountSelling": false,
+    "isHighlighted": false,
+    "objectId": 100007044,
+    "objectType": "game",
+    "objectName": "Elden Ring",
+    "objectImg": "",
+    "forHardware": false,
+    "condition": 1,
+    "conditionLabel": null,
+    "unavailableLabel": null,
+    "isSuspicious": false,
+    "crossedPrice": "48.35",
+    "discountPercent": "12%",
+    "discountCode": "RAB12DLC",
+    "discountPayback": false,
+    "specialIds": [
+     1
+    ],
+    "displayRegion": "Global",
+    "regionId": 1,
+    "extraId": null
+   },
+   {
+    "id": 29173301,
+    "shopId": 28,
+    "platformId": 169,
+    "finalPrice": "19.90",
+    "feePrices": [],
+    "box": true,
+    "isAccountSelling": false,
+    "isHighlighted": false,
+    "objectId": 100007044,
+    "objectType": "game",
+    "objectName": "Elden Ring",
+    "objectImg": "",
+    "forHardware": false,
+    "condition": 1,
+    "conditionLabel": null,
+    "unavailableLabel": null,
+    "isSuspicious": false,
+    "specialIds": [
+     1
+    ],
+    "displayRegion": "France",
+    "regionId": 6,
+    "extraId": null
+   },
+   {
+    "id": 11419794,
+    "shopId": 30,
+    "platformId": 169,
+    "finalPrice": "23.88",
+    "feePrices": [],
+    "box": true,
+    "isAccountSelling": false,
+    "isHighlighted": true,
+    "objectId": 100007044,
+    "objectType": "game",
+    "objectName": "Elden Ring",
+    "objectImg": "",
+    "forHardware": false,
+    "condition": 2,
+    "conditionLabel": "Occasion",
+    "unavailableLabel": null,
+    "isSuspicious": false,
+    "specialIds": [
+     1
+    ],
+    "displayRegion": "France",
+    "regionId": 6,
+    "extraId": null
+   },
+   {
+    "id": 22330205,
+    "shopId": 210,
+    "platformId": 2,
+    "finalPrice": "18.01",
+    "feePrices": {
+     "2": "18.97",
+     "1": "18.97"
+    },
+    "box": false,
+    "isAccountSelling": true,
+    "isHighlighted": true,
+    "objectId": 100017044,
+    "objectType": "game",
+    "objectName": "Elden Ring Shadow of the Erdtree",
+    "objectImg": "",
+    "forHardware": false,
+    "condition": 1,
+    "conditionLabel": null,
+    "unavailableLabel": null,
+    "isSuspicious": false,
+    "crossedPrice": "21.19",
+    "discountPercent": "15%",
+    "discountCode": "dlcompare",
+    "discountPayback": false,
+    "specialIds": [
+     220
+    ],
+    "displayRegion": "Global",
+    "regionId": 1,
+    "extraId": "dlc_100017044"
+   },
+   {
+    "id": 23137839,
+    "shopId": 285,
+    "platformId": 27,
+    "finalPrice": "7.81",
+    "feePrices": {
+     "2": "8.88",
+     "1": "9.07"
+    },
+    "box": false,
+    "isAccountSelling": false,
+    "isHighlighted": false,
+    "objectId": 393,
+    "objectType": "extraproduct",
+    "objectName": "Elden Ring - Pre-order Bonus",
+    "objectImg": "",
+    "forHardware": false,
+    "condition": 1,
+    "conditionLabel": null,
+    "unavailableLabel": null,
+    "isSuspicious": false,
+    "crossedPrice": "8.88",
+    "discountPercent": "12%",
+    "discountCode": "DLC12DEAL",
+    "discountPayback": false,
+    "specialIds": [
+     1
+    ],
+    "displayRegion": "Europe",
+    "regionId": 2,
+    "extraId": "ext_393"
+   },
+   {
+    "id": 24740060,
+    "shopId": 28,
+    "platformId": 171,
+    "finalPrice": "36.10",
+    "feePrices": [],
+    "box": true,
+    "isAccountSelling": false,
+    "isHighlighted": true,
+    "objectId": 100007044,
+    "objectType": "game",
+    "objectName": "Elden Ring",
+    "objectImg": "",
+    "forHardware": false,
+    "condition": 2,
+    "conditionLabel": "Occasion",
+    "unavailableLabel": null,
+    "isSuspicious": false,
+    "specialIds": [
+     1683
+    ],
+    "displayRegion": "France",
+    "regionId": 6,
+    "extraId": null
+   },
+   {
+    "id": 23631277,
+    "shopId": 103,
+    "platformId": 171,
+    "finalPrice": "15.11",
+    "feePrices": {
+     "2": "17.58",
+     "1": "17.65"
+    },
+    "box": false,
+    "isAccountSelling": true,
+    "isHighlighted": true,
+    "objectId": 100007044,
+    "objectType": "game",
+    "objectName": "Elden Ring",
+    "objectImg": "",
+    "forHardware": false,
+    "condition": 1,
+    "conditionLabel": null,
+    "unavailableLabel": null,
+    "isSuspicious": false,
+    "crossedPrice": "17.99",
+    "discountPercent": "16%",
+    "discountCode": "RAB18DLC",
+    "discountPayback": false,
+    "specialIds": [
+     220
+    ],
+    "displayRegion": "Rest of World",
+    "regionId": 12,
+    "extraId": null
+   }
+  ]
+ }
+}

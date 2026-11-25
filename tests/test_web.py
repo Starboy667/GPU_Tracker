@@ -237,6 +237,11 @@ def test_empty_dashboard_teaches_the_first_step(admin):
 def test_new_watch_starts_with_a_preset(admin):
     picker = admin.get("/watches/new")
     assert "Graphics card" in picker.text and "/watches/new?preset=tv" in picker.text
+    assert "Video game (PC)" in picker.text
+    game = admin.get("/watches/new?preset=game").text
+    assert 'name="site_steam" checked' in game and 'name="site_dlcompare" checked' in game
+    assert 'name="site_ldlc" checked' not in game and "Vente de compte" in game
+    assert game.index("Shops and comparators") < game.index("Video games") < game.index('name="site_steam"')
     form = admin.get("/watches/new?preset=gpu")
     assert 'name="site_ldlc" checked' in form.text and "watercooling" in form.text
     assert 'name="preset" value="gpu"' in form.text

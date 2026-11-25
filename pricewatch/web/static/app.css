@@ -250,6 +250,7 @@ strong { font-weight: 650; }
 .cell-actions { white-space: nowrap; text-align: right; }
 .cell-actions > * { margin-left: 0.25rem; vertical-align: top; }
 .watches td { white-space: nowrap; }
+.table td[data-label="Seen since"] { white-space: nowrap; }
 .watches .sub { white-space: normal; }
 
 .spark { display: block; overflow: visible; }
@@ -368,6 +369,9 @@ input:disabled { opacity: 0.55; }
 .options > * + * { margin-top: 0.5rem; }
 .options-nested { margin-left: 1.625rem; display: grid; gap: 0.375rem; }
 
+.group-title { font-size: 0.8125rem; font-weight: 600; color: var(--text-2); margin: 0; }
+.site-list + .group-title { margin-top: 1.5rem; }
+.group-title + .site-list { margin-top: 0.5rem; }
 .site-list > li { padding: 0.625rem 0; border-bottom: 1px solid var(--line); }
 .site-list > li:first-child { padding-top: 0; }
 .site-url { margin: 0.25rem 0 0 1.625rem; }

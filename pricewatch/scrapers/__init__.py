@@ -6,15 +6,16 @@
 from __future__ import annotations
 
 from pricewatch import netsafe
-from pricewatch.scrapers import alternate, dealabs, grosbill, idealo, ldlc, materiel, topachat
+from pricewatch.scrapers import alternate, dealabs, dlcompare, grosbill, idealo, ldlc, materiel, steam, topachat
 from pricewatch.scrapers.base import SiteScraper
 from pricewatch.scrapers.product_page import parse_product_page, scrape_product_page, site_label
 
 SCRAPERS: dict[str, SiteScraper] = {
     module.SCRAPER.key: module.SCRAPER
-    for module in (ldlc, materiel, topachat, grosbill, alternate, idealo, dealabs)
+    for module in (ldlc, materiel, topachat, grosbill, alternate, idealo, dealabs, steam, dlcompare)
 }
-DEFAULT_SITES: tuple[str, ...] = tuple(SCRAPERS)
+# The hardware and electronics sites of the original script. Game sources are opt-in (presets).
+DEFAULT_SITES: tuple[str, ...] = tuple(m.SCRAPER.key for m in (ldlc, materiel, topachat, grosbill, alternate, idealo, dealabs))
 DEALABS_GPU_FEED = dealabs.GPU_FEED
 
 

@@ -372,7 +372,8 @@ def test_search_builds_the_default_url(key, fetcher, expected_url):
     assert ctx.calls == [(fetcher, expected_url)]
 
 
-@pytest.mark.parametrize("key", list(SCRAPERS))
+# The game sources turn an override into an API call instead (see test_scrapers_games.py).
+@pytest.mark.parametrize("key", list(DEFAULT_SITES))
 def test_search_uses_a_url_override_as_is(key):
     override = f"https://www.{SCRAPERS[key].domains[0]}/some/category?page=2"
     ctx = RecordingContext()
@@ -411,8 +412,9 @@ def test_dealabs_group_feeds_are_cached_separately():
 # --------------------------------------------------------------------------- registry
 
 def test_registry_order_and_defaults():
-    assert list(SCRAPERS) == ["ldlc", "materiel", "topachat", "grosbill", "alternate", "idealo", "dealabs"]
-    assert DEFAULT_SITES == tuple(SCRAPERS)
+    hardware = ["ldlc", "materiel", "topachat", "grosbill", "alternate", "idealo", "dealabs"]
+    assert list(SCRAPERS) == [*hardware, "steam", "dlcompare"]
+    assert DEFAULT_SITES == tuple(hardware)  # game sources are opt-in
     assert DEALABS_GPU_FEED == "https://www.dealabs.com/rss/groupe/cartes-graphiques"
 
 
@@ -421,6 +423,7 @@ def test_registry_kinds():
     assert kinds == {
         "ldlc": KIND_RETAILER, "materiel": KIND_RETAILER, "topachat": KIND_RETAILER, "grosbill": KIND_RETAILER,
         "alternate": KIND_RETAILER, "idealo": KIND_COMPARATOR, "dealabs": KIND_DEALS,
+        "steam": KIND_RETAILER, "dlcompare": KIND_COMPARATOR,
     }
 
 

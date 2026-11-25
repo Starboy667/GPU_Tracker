@@ -1,0 +1,19 @@
+{
+ "1245620": {
+  "success": true,
+  "data": {
+   "type": "game",
+   "name": "ELDEN RING",
+   "steam_appid": 1245620,
+   "is_free": false,
+   "price_overview": {
+    "currency": "EUR",
+    "initial": 5999,
+    "final": 5999,
+    "discount_percent": 0,
+    "initial_formatted": "",
+    "final_formatted": "59,99€"
+   }
+  }
+ }
+}

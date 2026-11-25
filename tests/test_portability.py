@@ -59,6 +59,13 @@ watches:
     assert load(portability.export_yaml(watches)) == watches
 
 
+def test_a_document_without_sites_means_the_original_hardware_shops():
+    [w] = load("watches:\n  - {name: RTX 5070}")
+    assert w.sites == ("ldlc", "materiel", "topachat", "grosbill", "alternate", "idealo", "dealabs")
+    [game] = load("version: 2\nwatches:\n  - {name: Elden Ring, sites: [steam, dlcompare]}")
+    assert game.sites == ("steam", "dlcompare")
+
+
 def test_legacy_and_watch_excludes_are_combined():
     [w] = load("defaults: {exclude: 'PC'}\nwatches:\n  - {name: A, sites: [ldlc], exclude: 'kit'}")
     assert w.exclude == "(?:PC)|(?:kit)"

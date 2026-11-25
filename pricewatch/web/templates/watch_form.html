@@ -38,8 +38,10 @@
     </div>
     <div class="form-body">
       {% if errors.get("sites") %}<p class="error" role="alert">{{ errors["sites"] }}</p>{% endif %}
+      {% for group in sites|groupby("group") %}
+      <h3 class="group-title">{{ group.grouper }}</h3>
       <ul class="site-list">
-        {% for s in sites %}
+        {% for s in group.list %}
         {% set url_name = "url_" ~ s.key %}
         <li>
           {{ ui.checkbox("site_" ~ s.key, s.label, values, hint=s.description) }}
@@ -50,6 +52,7 @@
         </li>
         {% endfor %}
       </ul>
+      {% endfor %}
     </div>
   </section>
 

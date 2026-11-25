@@ -222,6 +222,7 @@ class SiteScraper:
     description: str  # one line shown next to the checkbox in the UI
     search: Callable[[FetchContext, str, str | None], list[Listing]]
     url_help: str = ""  # what a URL override should be for this site
+    group: str = "Shops and comparators"  # heading the site is listed under in the watch form
 
 
 # --------------------------------------------------------------------------- parsing helpers
