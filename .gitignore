@@ -7,3 +7,4 @@ __pycache__/
 data/
 probe_out/
 .playwright-mcp/
+vpn.env
