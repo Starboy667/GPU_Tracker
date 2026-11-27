@@ -19,6 +19,12 @@ RUN_FAILED = "failed"
 TRIGGER_SCHEDULE = "schedule"
 TRIGGER_MANUAL = "manual"
 
+# Who may see a watch besides its owner.
+VISIBILITY_PRIVATE = "private"  # nobody
+VISIBILITY_SHARED = "shared"  # the accounts listed in Watch.shared_with
+VISIBILITY_PUBLIC = "public"  # every account of this instance
+VISIBILITIES = (VISIBILITY_PRIVATE, VISIBILITY_SHARED, VISIBILITY_PUBLIC)
+
 
 @dataclass(frozen=True)
 class User:
@@ -57,6 +63,12 @@ class Watch:
     query: str
     match: str
     id: int | None = None
+    owner_id: int | None = None  # None only for rows that predate accounts owning watches
+    visibility: str = VISIBILITY_PRIVATE
+    shared_with: tuple[int, ...] = ()  # user ids, meaningful when visibility is "shared"
+    # Secret part of the read-only link that works without an account. None = no link.
+    # Ignored while the watch is private.
+    share_token: str | None = None
     exclude: str = ""
     min_price: float | None = None
     max_price: float | None = None  # fixed target: always alert at or below it
@@ -97,6 +109,7 @@ class Channel:
     type: str
     config: Mapping[str, object]
     id: int | None = None
+    owner_id: int | None = None
     events: tuple[str, ...] = ("deal", "restock", "health")
     enabled: bool = True
     created_at: str = ""
@@ -147,6 +160,8 @@ class Run:
     listings: int
     alerts: int
     errors: tuple[tuple[str, str, str], ...]  # (watch, site, error)
+    # For each entry of ``errors``, the watch it is about (None: none, or recorded before ids were kept).
+    error_watch_ids: tuple[int | None, ...] = ()
 
 
 @dataclass(frozen=True)

@@ -2,10 +2,18 @@
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 
-from pricewatch import deals, netsafe
-from pricewatch.models import Channel, ProductURL, Settings, Watch
+from pricewatch import deals, netsafe, security
+from pricewatch.models import (
+    VISIBILITIES,
+    VISIBILITY_PRIVATE,
+    VISIBILITY_SHARED,
+    Channel,
+    ProductURL,
+    Settings,
+    Watch,
+)
 from pricewatch.notify.base import EVENT_KINDS, ChannelType, ConfigError, clean_config
 from pricewatch.security import is_valid_email, normalize_email, password_problem
 
@@ -89,7 +97,12 @@ def parse_watch(
     channel_ids: Iterable[int],
     validate_site_url,
     existing: Watch | None = None,
+    owner_id: int | None = None,
+    shareable_user_ids: Iterable[int] = (),
+    new_token: Callable[[], str] = security.new_token,
 ) -> tuple[Watch | None, Errors]:
+    """``owner_id`` is who a new watch will belong to (an edited one keeps its owner).
+    ``shareable_user_ids`` are the other accounts it may be shared with."""
     errors: Errors = {}
     name = _text(form, "name")
     if not name:
@@ -142,11 +155,34 @@ def parse_watch(
     if (_text(form, "channels_mode") or CHANNELS_ALL) == CHANNELS_SELECTED:
         selected = tuple(cid for cid in channel_ids if _checked(form, f"channel_{cid}"))
 
+    if existing is not None and "visibility" not in form:
+        # A request that says nothing about sharing (an old page, a script) must not quietly
+        # turn a shared watch private, or kill its link.
+        visibility, shared_with, share_token = existing.visibility, existing.shared_with, existing.share_token
+    else:
+        visibility = _text(form, "visibility") or VISIBILITY_PRIVATE
+        shared_with = ()
+        wants_link = _checked(form, "share_link")
+        if visibility not in VISIBILITIES:
+            errors["visibility"] = "Pick one of the options."
+        elif visibility == VISIBILITY_SHARED:
+            shared_with = tuple(uid for uid in shareable_user_ids if _checked(form, f"share_user_{uid}"))
+            if not shared_with and not wants_link:
+                errors["visibility"] = (
+                    "Pick at least one account to share with, or turn the link on. Otherwise keep it private."
+                )
+        share_token = None
+        if wants_link and visibility != VISIBILITY_PRIVATE:
+            share_token = (existing.share_token if existing else None) or new_token()
+
     if errors:
         return None, errors
-    base = existing or Watch(name=name, query=query, match=match)
+    base = existing or Watch(name=name, query=query, match=match, owner_id=owner_id)
     return dataclasses.replace(
         base,
+        visibility=visibility,
+        shared_with=shared_with,
+        share_token=share_token,
         name=name,
         query=query,
         match=match,
@@ -208,7 +244,9 @@ def parse_channel(
     *,
     existing: Channel | None = None,
     allow_private: bool = False,
+    owner_id: int | None = None,
 ) -> tuple[Channel | None, Errors]:
+    """``owner_id`` is who a new channel will belong to (an edited one keeps its owner)."""
     errors: Errors = {}
     name = _text(form, "name") or channel_type.label
     if len(name) > MAX_NAME_LENGTH:
@@ -228,7 +266,7 @@ def parse_channel(
         errors.update({f"cfg_{name}": message[:1].upper() + message[1:] + "." for name, message in exc.errors.items()})
     if errors:
         return None, errors
-    base = existing or Channel(name=name, type=channel_type.key, config=config)
+    base = existing or Channel(name=name, type=channel_type.key, config=config, owner_id=owner_id)
     return dataclasses.replace(
         base, name=name, config=config, events=events, enabled=_checked(form, "enabled"), readable=True
     ), {}

@@ -1,43 +1,9 @@
 {% extends "base.html" %}
 {% import "_macros.html" as ui with context %}
 {% block title %}Watches{% endblock %}
-{% block content %}
-<div class="page-head">
-  <div>
-    <h1>Watches</h1>
-    <p class="page-meta">
-      {% if busy %}<span class="pulse" aria-hidden="true"></span>Checking prices now…
-      {% elif last_run %}Last check {{ last_run.started_at|ago(now) }}{% if last_run.status == "partial" %}, <a href="/status">some shops failed</a>{% elif last_run.status == "failed" %}, <a href="/status">it failed</a>{% endif %}{% if next_due %} · next {{ until(next_due, now) }}{% endif %}
-      {% else %}No check has run yet{% if next_due %} · first one {{ until(next_due, now) }}{% endif %}{% endif %}
-    </p>
-  </div>
-  <div class="actions">
-    {% if rows %}{{ ui.post_button("/check", "Check now", "btn", "Starting…") }}{% endif %}
-    <a class="btn btn-primary" href="/watches/new">Add a watch</a>
-  </div>
-</div>
 
-{% if failing %}
-<p class="notice notice-warn">
-  {% for label, h in failing %}{{ label }}{% if not loop.last %}, {% endif %}{% endfor %}
-  {{ "has" if failing|length == 1 else "have" }} failed several checks in a row. <a href="/status">See what is wrong</a>
-</p>
-{% endif %}
-{% if rows and not channel_count %}
-<p class="notice notice-info">Deals show up here, but nothing is sent to you yet. <a href="/channels">Add a notification channel</a></p>
-{% endif %}
-
-{% if not rows %}
-<div class="empty">
-  <h2>Nothing is being watched yet</h2>
-  <p>A watch is one product you want to buy at the right price. Price Watch looks it up in the shops every
-    {{ settings.check_interval_minutes }} minutes, learns its usual price over a few days, and alerts you when it drops.</p>
-  <p class="actions actions-center">
-    <a class="btn btn-primary" href="/watches/new">Add your first watch</a>
-    <a class="btn" href="/watches/import">Import a list</a>
-  </p>
-</div>
-{% else %}
+{# One table for the viewer's own watches, one for those other people let them see. #}
+{% macro watch_table(rows, own) %}
 <div class="table-wrap">
 <table class="table table-stack watches">
   <thead>
@@ -46,7 +12,7 @@
       <th scope="col" class="num">Best price now</th>
       <th scope="col" class="num">Usual price</th>
       <th scope="col" class="num">Alert at</th>
-      <th scope="col">Last {{ 30 }} days</th>
+      <th scope="col">Last 30 days</th>
       <th scope="col">Checked</th>
     </tr>
   </thead>
@@ -57,7 +23,9 @@
       <th scope="row" class="cell-name">
         <a class="row-link" href="/watches/{{ w.id }}">{{ w.name }}</a>
         {{ ui.state_chip(row.state) }}
+        {% if own %}{{ ui.visibility_chip(w) }}{% elif row.following %}<span class="chip chip-info">Following</span>{% endif %}
         {% if w.last_errors and row.state != "paused" %}<span class="chip chip-warn" title="{% for site, error in w.last_errors %}{{ site }}: {{ error }}{% if not loop.last %} · {% endif %}{% endfor %}">{{ w.last_errors|length }} shop{{ "s" if w.last_errors|length > 1 }} failed</span>{% endif %}
+        {% if not own %}<span class="sub">{% if row.owner %}From {{ row.owner }}{% else %}No owner{% endif %}{% if w.visibility == "public" %}, public{% endif %}</span>{% endif %}
       </th>
       <td class="num" data-label="Best price now">
         {% if row.best %}
@@ -81,11 +49,64 @@
   </tbody>
 </table>
 </div>
+{% endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Watches</h1>
+    <p class="page-meta">
+      {% if busy %}<span class="pulse" aria-hidden="true"></span>Checking prices now…
+      {% elif last_run %}Last check {{ last_run.started_at|ago(now) }}{% if last_run.status == "partial" %}, <a href="/status">some shops failed</a>{% elif last_run.status == "failed" %}, <a href="/status">it failed</a>{% endif %}{% if next_due %} · next {{ until(next_due, now) }}{% endif %}
+      {% else %}No check has run yet{% if next_due %} · first one {{ until(next_due, now) }}{% endif %}{% endif %}
+    </p>
+  </div>
+  <div class="actions">
+    {% if rows or other_rows %}{{ ui.post_button("/check", "Check now", "btn", "Starting…") }}{% endif %}
+    <a class="btn btn-primary" href="/watches/new">Add a watch</a>
+  </div>
+</div>
+
+{% if failing %}
+<p class="notice notice-warn">
+  {% for label, h in failing %}{{ label }}{% if not loop.last %}, {% endif %}{% endfor %}
+  {{ "has" if failing|length == 1 else "have" }} failed several checks in a row. <a href="/status">See what is wrong</a>
+</p>
+{% endif %}
+{% if rows and not channel_count %}
+<p class="notice notice-info">Deals show up here, but nothing is sent to you yet. <a href="/channels">Add a notification channel</a></p>
+{% endif %}
+
+{% if not rows %}
+<div class="empty">
+  <h2>{% if other_rows %}You have no watch of your own yet{% else %}Nothing is being watched yet{% endif %}</h2>
+  <p>A watch is one product you want to buy at the right price. Price Watch looks it up in the shops every
+    {{ settings.check_interval_minutes }} minutes, learns its usual price over a few days, and alerts you when it drops.
+    A new watch is private: only you see it until you share it.</p>
+  <p class="actions actions-center">
+    <a class="btn btn-primary" href="/watches/new">Add your first watch</a>
+    <a class="btn" href="/watches/import">Import a list</a>
+  </p>
+</div>
+{% else %}
+{{ watch_table(rows, true) }}
 <p class="table-foot muted">
-  {{ rows|length }} watch{{ "es" if rows|length != 1 }} ·
+  {{ rows|length }} watch{{ "es" if rows|length != 1 }} of yours ·
   <a href="/watches/import">Import</a> · <a href="/watches/export.yaml">Export as YAML</a>
 </p>
+{% endif %}
 
+{% if other_rows %}
+<section class="section">
+  <div class="section-head">
+    <h2>From other people</h2>
+    <span class="muted">Shared with you, or public. Open one to receive its alerts too.</span>
+  </div>
+  {{ watch_table(other_rows, false) }}
+</section>
+{% endif %}
+
+{% if rows or other_rows %}
 <section class="section">
   <div class="section-head">
     <h2>Latest alerts</h2>

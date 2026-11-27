@@ -20,8 +20,8 @@ from pricewatch.forms import (
     MAX_SELECTOR_LENGTH,
     MIN_DROP_PCT,
 )
-from pricewatch.models import ProductURL, Watch
-from pricewatch.presets import ALL_SITES, DEALABS_GPU_FEED
+from pricewatch.models import VISIBILITY_PRIVATE, VISIBILITY_PUBLIC, ProductURL, Watch
+from pricewatch.presets import DEALABS_GPU_FEED, ORIGINAL_SITES
 
 EXPORT_VERSION = 2
 MAX_IMPORT_BYTES = 200_000
@@ -95,7 +95,7 @@ def import_yaml(
     legacy = doc.get("version") != EXPORT_VERSION
     defaults = doc.get("defaults") if isinstance(doc.get("defaults"), dict) else {}
     # A document without `sites:` is the original script's: it only knew the hardware shops.
-    default_sites = doc.get("sites") if isinstance(doc.get("sites"), list) else [s for s in ALL_SITES if s in known]
+    default_sites = doc.get("sites") if isinstance(doc.get("sites"), list) else [s for s in ORIGINAL_SITES if s in known]
     problems: list[str] = []
     watches: list[Watch] = []
     seen: set[str] = set()
@@ -171,6 +171,8 @@ def import_yaml(
             site_urls=site_urls,
             product_urls=tuple(pages),
             enabled=raw.get("enabled") is not False,
+            # "shared" names accounts of the instance it came from: it arrives private.
+            visibility=VISIBILITY_PUBLIC if raw.get("visibility") == VISIBILITY_PUBLIC else VISIBILITY_PRIVATE,
         ))
     if problems:
         raise ImportError_(problems)
@@ -178,7 +180,8 @@ def import_yaml(
 
 
 def export_yaml(watches: Iterable[Watch]) -> str:
-    """Serialise watches. Channel routing is left out: channel ids mean nothing elsewhere."""
+    """Serialise watches. Channel routing, owners, the accounts a watch is shared with and
+    share links are left out: they mean nothing on another instance."""
     items = []
     for w in watches:
         item: dict = {"name": w.name, "query": w.query, "match": w.match}
@@ -195,6 +198,7 @@ def export_yaml(watches: Iterable[Watch]) -> str:
                 {"url": p.url, "selector": p.selector} if p.selector else p.url for p in w.product_urls
             ] or None,
             "enabled": None if w.enabled else False,
+            "visibility": VISIBILITY_PUBLIC if w.visibility == VISIBILITY_PUBLIC else None,
         }
         item.update({k: v for k, v in optional.items() if v is not None})
         items.append(item)

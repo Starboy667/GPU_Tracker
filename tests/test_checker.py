@@ -7,7 +7,7 @@ from pricewatch.checker import Checker
 from pricewatch.delivery import MAX_DELIVERY_ATTEMPTS, Dispatcher, message_title, sample_message
 from pricewatch.models import Channel, ProductURL, Watch
 from pricewatch.notify.base import NotifyError
-from pricewatch.repos import alerts, channels, listings, runs, settings, watches
+from pricewatch.repos import alerts, channels, listings, runs, settings, users, watches
 from pricewatch.scan import scan_watch
 from pricewatch.scheduler import Scheduler
 from pricewatch.scrapers.base import KIND_DEALS, KIND_RETAILER, FetchContext, Listing, ScrapeError, SiteScraper
@@ -53,6 +53,9 @@ class World:
         self.pages = {}
         self.outbox = Outbox()
         self.pauses = 0
+        with db.connect() as conn:
+            self.owner = users.create(conn, "owner@example.org", "x", True, NOW)
+            self.friend = users.create(conn, "friend@example.org", "x", False, NOW)
         self.dispatcher = Dispatcher(db, box, config, send=self.outbox, clock=clock)
         self.checker = Checker(
             db, box, config, self.dispatcher,
@@ -70,12 +73,12 @@ class World:
         return page
 
     def add_watch(self, **kw):
-        base = dict(name="RTX 5070", query="rtx 5070", match="RTX\\s*5070", sites=("ldlc",))
+        base = dict(name="RTX 5070", query="rtx 5070", match="RTX\\s*5070", sites=("ldlc",), owner_id=self.owner.id)
         with self.db.connect() as conn:
             return watches.create(conn, Watch(**{**base, **kw}), NOW)
 
     def add_channel(self, **kw):
-        base = dict(name="Phone", type="ntfy", config={"topic": "x"})
+        base = dict(name="Phone", type="ntfy", config={"topic": "x"}, owner_id=self.owner.id)
         with self.db.connect() as conn:
             return channels.create(conn, self.box, Channel(**{**base, **kw}), NOW)
 

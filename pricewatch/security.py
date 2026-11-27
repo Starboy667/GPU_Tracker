@@ -11,7 +11,7 @@ import time
 from collections.abc import Callable, Mapping
 
 from argon2 import PasswordHasher
-from argon2.exceptions import InvalidHashError, VerificationError
+from argon2.exceptions import InvalidHashError, VerifyMismatchError
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
@@ -28,16 +28,28 @@ _DUMMY_HASH = _hasher.hash(secrets.token_urlsafe(16))
 
 # --------------------------------------------------------------------------- passwords
 
+# Argon2 takes about 64 MiB per operation by design. Several sign-ins at once must queue rather
+# than add up past what a small container has.
+_argon_slots = threading.BoundedSemaphore(2)
+
+
 def hash_password(password: str) -> str:
-    return _hasher.hash(password)
+    with _argon_slots:
+        return _hasher.hash(password)
 
 
 def verify_password(password_hash: str | None, password: str) -> bool:
-    """Constant-shape check: an unknown user (``None``) costs as much as a wrong password."""
+    """Constant-shape check: an unknown user (``None``) costs as much as a wrong password.
+
+    Only a real mismatch (or an unreadable stored hash) answers False. Anything else, such as
+    the system refusing the memory Argon2 needs, is raised: telling someone their password is
+    wrong when the server is short of memory would be a lie.
+    """
     target = password_hash or _DUMMY_HASH
     try:
-        ok = _hasher.verify(target, password)
-    except (VerificationError, InvalidHashError):
+        with _argon_slots:
+            ok = _hasher.verify(target, password)
+    except (VerifyMismatchError, InvalidHashError):
         return False
     return bool(ok) and password_hash is not None
 

@@ -10,7 +10,7 @@ import threading
 from collections.abc import Callable, Mapping
 from datetime import datetime, timedelta
 
-from pricewatch import deals
+from pricewatch import access, deals
 from pricewatch.config import Config
 from pricewatch.db import Database, iso, utcnow
 from pricewatch.delivery import Dispatcher
@@ -32,6 +32,7 @@ from pricewatch.repos import channels as channels_repo
 from pricewatch.repos import listings as listings_repo
 from pricewatch.repos import runs as runs_repo
 from pricewatch.repos import settings as settings_repo
+from pricewatch.repos import users as users_repo
 from pricewatch.repos import watches as watches_repo
 from pricewatch.scan import PRODUCT_HEALTH_PREFIX, ProductScraper, WatchScan, polite_pause, scan_watch
 from pricewatch.scrapers.base import SOURCE_PRODUCT_PAGE, FetchContext, SiteScraper
@@ -106,6 +107,7 @@ class Checker:
                 todo = [w for w in watches_repo.list_all(conn) if w.id in watch_ids]
         ctx = FetchContext(dealabs_max_age_days=settings.dealabs_max_age_days)
         errors: list[tuple[str, str, str]] = []
+        error_watch_ids: list[int | None] = []  # parallel to errors: who may read each one later
         outcomes: dict[str, list[str | None]] = {}
         listing_count = alert_count = watch_count = 0
         status = RUN_OK
@@ -122,10 +124,12 @@ class Checker:
                 except Exception as exc:  # one broken watch must not cost the others their check
                     log.exception("watch %s failed in run %s", watch.id, run_id)
                     errors.append((watch.name, "", f"internal error ({type(exc).__name__})"))
+                    error_watch_ids.append(watch.id)
                     continue
                 watch_count += 1
                 listing_count += len(scan.accepted)
                 errors += [(watch.name, site, error) for site, error in scan.errors]
+                error_watch_ids += [watch.id] * len(scan.errors)
                 for key, error in scan.outcomes:
                     outcomes.setdefault(key, []).append(error)
             with self._db.connect() as conn:
@@ -140,6 +144,7 @@ class Checker:
             log.exception("check run %s failed", run_id)
             status = RUN_FAILED
             errors.append(("", "", f"internal error ({type(exc).__name__})"))
+            error_watch_ids.append(None)
         finally:
             with self._db.connect() as conn:
                 runs_repo.finish(
@@ -150,6 +155,7 @@ class Checker:
                     listings=listing_count,
                     alerts=alert_count,
                     errors=tuple(errors),
+                    error_watch_ids=tuple(error_watch_ids),
                     now=iso(self._clock()),
                 )
                 run = runs_repo.latest(conn, 1)[0]
@@ -176,7 +182,7 @@ class Checker:
         drop_pct = settings.deal_drop_pct if watch.deal_drop_pct is None else watch.deal_drop_pct
         threshold = deals.deal_threshold(watch.max_price, base, drop_pct)
         in_stock_only = settings.in_stock_only if watch.in_stock_only is None else watch.in_stock_only
-        channels = [c for c in channels_repo.list_all(conn, self._box) if _channel_accepts_watch(c, watch)]
+        channels = self._recipients(conn, watch)
 
         created = 0
         for listing in scan.accepted:
@@ -224,6 +230,23 @@ class Checker:
         watches_repo.mark_checked(conn, watch.id, now, scan.errors)
         return created
 
+    def _recipients(self, conn, watch: Watch) -> list[Channel]:
+        """The channels an alert of this watch goes to: its owner's (those picked on the watch),
+        and every channel of the accounts that follow it and may still see it."""
+        followers = {
+            user_id for user_id in watches_repo.followers(conn, watch.id) if access.may_follow(user_id, watch)
+        }
+        recipients = []
+        for channel in channels_repo.list_all(conn, self._box):
+            if not channel.enabled or channel.owner_id is None:
+                continue
+            if channel.owner_id == watch.owner_id:
+                if watch.channel_ids is None or channel.id in watch.channel_ids:
+                    recipients.append(channel)
+            elif channel.owner_id in followers:
+                recipients.append(channel)
+        return recipients
+
     def site_label(self, health_key: str) -> str:
         if health_key.startswith(PRODUCT_HEALTH_PREFIX):
             return f"{health_key.removeprefix(PRODUCT_HEALTH_PREFIX)} product pages"
@@ -234,14 +257,19 @@ class Checker:
         """Track consecutive failed runs per site. Alert once when a site looks broken and once
         when it recovers. Returns the number of alerts created."""
         now = iso(self._clock())
-        channels = [c for c in channels_repo.list_all(conn, self._box) if c.enabled]
+        enabled = [c for c in channels_repo.list_all(conn, self._box) if c.enabled]
+        admins = users_repo.admin_ids(conn)
         created = 0
         for key, results in outcomes.items():
+            # A shop everyone can pick concerns everyone. The host of a product page says what
+            # somebody is watching: that only goes to the people who run the instance.
+            private_host = key.startswith(PRODUCT_HEALTH_PREFIX)
+            channels = [c for c in enabled if not private_host or c.owner_id in admins]
             health = runs_repo.health_get(conn, key)
             failures = [error for error in results if error is not None]
             if len(failures) < len(results):
                 if health.alerted:
-                    alert = Alert(kind=KIND_HEALTH, title=f"{self.site_label(key)} is working again")
+                    alert = Alert(kind=KIND_HEALTH, site=key, title=f"{self.site_label(key)} is working again")
                     _record_alert(conn, alert, channels, now)
                     created += 1
                 runs_repo.health_save(conn, SiteHealth(key, 0, now, health.last_error, health.last_error_at, False))
@@ -251,6 +279,7 @@ class Checker:
             if settings.health_alert_after > 0 and streak >= settings.health_alert_after and not alerted:
                 alert = Alert(
                     kind=KIND_HEALTH,
+                    site=key,
                     title=f"{self.site_label(key)} has failed {streak} checks in a row",
                     detail=f"Latest error: {failures[-1]}",
                 )
@@ -275,7 +304,3 @@ def _record_alert(conn, alert: Alert, channels: list[Channel], now: str) -> None
             alerts_repo.add_delivery(conn, alert_id, channel.id, now)
 
 
-def _channel_accepts_watch(channel: Channel, watch: Watch) -> bool:
-    if not channel.enabled:
-        return False
-    return watch.channel_ids is None or channel.id in watch.channel_ids

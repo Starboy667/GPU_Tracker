@@ -28,7 +28,7 @@ def alert_to_item(alert: Alert) -> AlertItem:
         kind=alert.kind,
         watch=alert.watch_name,
         title=alert.title,
-        site=alert.site,
+        site="" if alert.kind == KIND_HEALTH else alert.site,
         url=alert.url,
         price=alert.price,
         previous_price=alert.previous_price,

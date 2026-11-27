@@ -10,6 +10,7 @@ MAX_ERRORS_STORED = 200
 
 
 def _run(row: sqlite3.Row) -> Run:
+    stored = json.loads(row["errors"])  # [watch name, site, error, watch id]; older rows have no id
     return Run(
         id=row["id"],
         started_at=row["started_at"],
@@ -19,7 +20,8 @@ def _run(row: sqlite3.Row) -> Run:
         watches=row["watches"],
         listings=row["listings"],
         alerts=row["alerts"],
-        errors=tuple((e[0], e[1], e[2]) for e in json.loads(row["errors"])),
+        errors=tuple((e[0], e[1], e[2]) for e in stored),
+        error_watch_ids=tuple(e[3] if len(e) > 3 else None for e in stored),
     )
 
 
@@ -40,10 +42,14 @@ def finish(
     alerts: int,
     errors: tuple[tuple[str, str, str], ...],
     now: str,
+    error_watch_ids: tuple[int | None, ...] = (),
 ) -> None:
+    """``error_watch_ids`` runs parallel to ``errors``: the watch each one is about, if any."""
+    ids = (*error_watch_ids, *([None] * len(errors)))
+    stored = [[*error, ids[index]] for index, error in enumerate(errors[:MAX_ERRORS_STORED])]
     conn.execute(
         "UPDATE runs SET finished_at = ?, status = ?, watches = ?, listings = ?, alerts = ?, errors = ? WHERE id = ?",
-        (now, status, watches, listings, alerts, json.dumps([list(e) for e in errors[:MAX_ERRORS_STORED]]), run_id),
+        (now, status, watches, listings, alerts, json.dumps(stored), run_id),
     )
 
 

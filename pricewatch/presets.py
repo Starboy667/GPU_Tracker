@@ -24,9 +24,11 @@ PC_GAME_EXCLUDE = (
     r"Rest of World|\[DLC\]|\[extra\]"
 )
 
-ALL_SITES = ("ldlc", "materiel", "topachat", "grosbill", "alternate", "idealo", "dealabs")
+# The seven sites the original script knew: what a YAML document without `sites:` means.
+ORIGINAL_SITES = ("ldlc", "materiel", "topachat", "grosbill", "alternate", "idealo", "dealabs")
+ALL_SITES = ("ldlc", "materiel", "topachat", "grosbill", "alternate", "joybuy", "idealo", "dealabs")
 GAME_SITES = ("steam", "dlcompare")
-GENERAL_SITES = ("ldlc", "materiel", "idealo")
+GENERAL_SITES = ("ldlc", "materiel", "joybuy", "idealo")
 
 
 @dataclass(frozen=True)

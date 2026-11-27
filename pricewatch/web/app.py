@@ -28,7 +28,7 @@ from pricewatch.scheduler import Scheduler
 from pricewatch.web import views
 from pricewatch.web.charts import fmt_money
 from pricewatch.web.deps import Forbidden, LoginRequired, NotFound, Services, redirect, render
-from pricewatch.web.routes import account, alerts, auth, channels, dashboard, settings, watches
+from pricewatch.web.routes import account, alerts, auth, channels, dashboard, settings, shared, watches
 
 log = logging.getLogger(__name__)
 
@@ -156,6 +156,24 @@ def bootstrap_admin(svc: Services) -> None:
         log.info("created the first administrator account")
 
 
+def adopt_ownerless(svc: Services) -> None:
+    """Give watches and channels that have no owner to the first administrator.
+
+    Such rows only come from an upgrade made while no account existed (data imported from the
+    shell). Left alone they would be checked but alert nobody, and their channels would show up
+    on no one's page. A watch whose name the administrator already uses stays ownerless (any
+    administrator can rename or reassign it).
+    """
+    with svc.db.connect() as conn:
+        admin = users_repo.first_admin(conn)
+        if admin is None:
+            return
+        watches = conn.execute("UPDATE OR IGNORE watches SET owner_id = ? WHERE owner_id IS NULL", (admin.id,)).rowcount
+        channels = conn.execute("UPDATE channels SET owner_id = ? WHERE owner_id IS NULL", (admin.id,)).rowcount
+    if watches or channels:
+        log.info("gave %d ownerless watches and %d channels to the first administrator", watches, channels)
+
+
 def create_app(config: Config | None = None, services: Services | None = None) -> FastAPI:
     config = config or (services.config if services else load_config())
     svc = services or build_services(config)
@@ -164,6 +182,7 @@ def create_app(config: Config | None = None, services: Services | None = None) -
     async def lifespan(app: FastAPI):
         svc.db.migrate()
         bootstrap_admin(svc)
+        adopt_ownerless(svc)
         # The loop always runs so "Check now" works; SCHEDULER_ENABLED only gates automatic checks.
         svc.scheduler.start(scheduled=config.scheduler_enabled)
         try:
@@ -184,7 +203,7 @@ def create_app(config: Config | None = None, services: Services | None = None) -
     app.add_middleware(SecurityHeaders, hsts=config.cookie_secure)
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
 
-    for module in (auth, dashboard, watches, channels, alerts, settings, account):
+    for module in (auth, dashboard, watches, shared, channels, alerts, settings, account):
         app.include_router(module.router)
 
     @app.get("/healthz", include_in_schema=False)
@@ -214,6 +233,10 @@ def create_app(config: Config | None = None, services: Services | None = None) -
     @app.exception_handler(404)
     async def http_not_found(request: Request, exc):
         return _not_found_page(request)
+
+    @app.exception_handler(OverflowError)
+    async def number_too_large(request: Request, exc: OverflowError):
+        return _not_found_page(request)  # an id no database row can have
 
     @app.exception_handler(RequestValidationError)
     async def bad_address(request: Request, exc: RequestValidationError):

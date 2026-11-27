@@ -5,23 +5,43 @@
 <p class="crumbs"><a href="/">Watches</a></p>
 <div class="page-head">
   <div>
-    <h1>{{ watch.name }} {% if not watch.enabled %}<span class="chip chip-muted">Paused</span>{% endif %}</h1>
+    <h1>{{ watch.name }} {% if not watch.enabled %}<span class="chip chip-muted">Paused</span>{% endif %}{% if mine %} {{ ui.visibility_chip(watch) }}{% endif %}</h1>
     <p class="page-meta">
       {% if busy %}<span class="pulse" aria-hidden="true"></span>Checking prices now…
       {% else %}Checked {{ watch.last_checked_at|ago(now) }}{% endif %}
       · {% if watch.sites %}{% for key in watch.sites %}{{ site_labels.get(key, key) }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
       {%- if watch.product_urls %}{% if watch.sites %} + {% endif %}{{ watch.product_urls|length }} product page{{ "s" if watch.product_urls|length > 1 }}{% endif %}
+      {% if not mine %}· {% if owner_email %}from {{ owner_email }}{% else %}no owner{% endif %}{% endif %}
     </p>
   </div>
   <div class="actions">
+    {% if mine %}
     {{ ui.post_button("/watches/" ~ watch.id ~ "/check", "Check now", "btn", "Starting…") }}
     <a class="btn" href="/watches/{{ watch.id }}/edit">Edit</a>
     {{ ui.post_button("/watches/" ~ watch.id ~ "/toggle", "Resume" if not watch.enabled else "Pause", "btn") }}
     {{ ui.confirm_delete("/watches/" ~ watch.id ~ "/delete", "Delete", "Delete this watch and its price history? This cannot be undone.", "Yes, delete it") }}
+    {% else %}
+    <form method="post" action="/watches/{{ watch.id }}/follow" class="inline-form">
+      {{ ui.csrf() }}
+      {% if following %}
+      <input type="hidden" name="following" value="off">
+      <button class="btn">Stop receiving its alerts</button>
+      {% else %}
+      <button class="btn btn-primary">Receive its alerts</button>
+      {% endif %}
+    </form>
+    {% endif %}
   </div>
 </div>
 
-{% if watch.last_errors %}
+{% if not mine %}
+<p class="notice notice-info">
+  {% if watch.visibility == "public" %}A public watch{% else %}Shared with you{% endif %}{% if owner_email %} by {{ owner_email }}{% endif %}: you can look, its owner decides what it searches.
+  {% if following %}Its alerts also go to {% if channel_names %}your channels ({{ channel_names|join(", ") }}){% else %}you, once you have <a href="/channels">a channel</a>{% endif %}.{% endif %}
+</p>
+{% endif %}
+
+{% if mine and watch.last_errors %}
 <div class="notice notice-warn">
   <p>The last check could not read {{ watch.last_errors|length }} source{{ "s" if watch.last_errors|length > 1 }}. Their earlier offers are kept until they answer again.</p>
   <ul class="problem-list">
@@ -30,87 +50,12 @@
 </div>
 {% endif %}
 
-<dl class="facts">
-  <div>
-    <dt>Best price now</dt>
-    <dd>{% if best %}<span class="fact-value">{{ best.price|money }}</span> <span class="sub">{{ ui.ext_link(best.url, best.site) }}</span>{% else %}<span class="muted">No offer available</span>{% endif %}</dd>
-  </div>
-  <div>
-    <dt>Usual price</dt>
-    <dd>{% if pricing.baseline %}<span class="fact-value">{{ pricing.baseline.price|money }}</span> <span class="sub">median over {{ pricing.baseline.days }} day{{ "s" if pricing.baseline.days > 1 }}</span>
-      {% else %}<span class="muted">Still learning: {{ pricing.days_until_baseline }} more day{{ "s" if pricing.days_until_baseline > 1 }} of prices needed</span>{% endif %}</dd>
-  </div>
-  <div>
-    <dt>Alert at or under</dt>
-    <dd>{% if pricing.threshold is not none %}<span class="fact-value">{{ pricing.threshold|money }}</span>
-      <span class="sub">{% if watch.max_price is not none and pricing.threshold == watch.max_price %}your target price{% else %}{{ pricing.drop_pct|round(1)|string|replace(".0", "") }} % under usual{% endif %}{% if pricing.in_stock_only %}, in stock{% endif %}</span>
-      {% else %}<span class="muted">Not yet. <a href="/watches/{{ watch.id }}/edit">Set a target price</a> to be alerted right away</span>{% endif %}</dd>
-  </div>
-  <div>
-    <dt>Lowest in {{ chart_days }} days</dt>
-    <dd>{% if lowest %}<span class="fact-value">{{ lowest[1]|money }}</span> <span class="sub">on {{ lowest[0]|calendar_day }}</span>{% else %}<span class="muted">No history yet</span>{% endif %}</dd>
-  </div>
-</dl>
-
-<section class="section">
-  <div class="section-head">
-    <h2>Lowest available price per day</h2>
-    <span class="muted">Last {{ chart_days }} days, shops only (Dealabs posts are left out)</span>
-  </div>
-  {% if charts[0][1] %}
-  <div class="chart" data-chart-root>
-    {% for name, chart in charts %}{{ ui.linechart(chart, name) }}{% endfor %}
-    <div class="chart-tip" data-tip hidden><strong data-tip-value></strong><span data-tip-label></span></div>
-  </div>
-  <details class="more">
-    <summary>Show these prices as a table</summary>
-    <div class="table-wrap">
-    <table class="table table-compact">
-      <thead><tr><th scope="col">Day</th><th scope="col" class="num">Lowest available price</th></tr></thead>
-      <tbody>
-        {% for day, price in lows %}<tr><td>{{ day|calendar_day }}</td><td class="num">{{ price|money }}</td></tr>{% endfor %}
-      </tbody>
-    </table>
-    </div>
-  </details>
-  {% else %}
-  <p class="muted">The chart appears after the first successful check.</p>
-  {% endif %}
-</section>
-
-<section class="section">
-  <div class="section-head">
-    <h2>Offers found</h2>
-    <span class="muted">{{ listings|length }} from the latest checks, cheapest first</span>
-  </div>
-  {% if listings %}
-  <div class="table-wrap">
-  <table class="table table-stack">
-    <thead><tr><th scope="col" class="num">Price</th><th scope="col">Shop</th><th scope="col">Stock</th><th scope="col">Title</th><th scope="col">Seen since</th></tr></thead>
-    <tbody>
-      {% for l in listings %}
-      <tr{% if l.id in deal_ids %} class="is-deal"{% endif %}>
-        <td class="num" data-label="Price"><span class="price">{{ l.price|money }}</span>{% if l.id in deal_ids %} <span class="chip chip-good">Deal</span>{% endif %}</td>
-        <td data-label="Shop">{{ l.site }}</td>
-        <td data-label="Stock">{{ ui.stock(l.in_stock) }}</td>
-        <td data-label="Title">{{ ui.ext_link(l.url, l.title) }}</td>
-        <td data-label="Seen since"><span class="muted">{{ l.first_seen|localday }}</span></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  </div>
-  {% elif watch.last_checked_at %}
-  <p class="notice notice-info">The last check found nothing that matches. <a href="/watches/{{ watch.id }}/edit">Open the editor</a> and use “Test without saving” to see what the shops return and why it is filtered out.</p>
-  {% else %}
-  <p class="muted">Waiting for the first check.</p>
-  {% endif %}
-</section>
+{% include "_watch_body.html" %}
 
 <section class="section">
   <div class="section-head">
     <h2>Alerts for this watch</h2>
-    <span class="muted">Sent to {% if channel_names %}{{ channel_names|join(", ") }}{% else %}no channel yet{% endif %}</span>
+    {% if mine %}<span class="muted">Sent to {% if channel_names %}{{ channel_names|join(", ") }}{% else %}no channel yet{% endif %}</span>{% endif %}
   </div>
   {% if alerts %}
   <ul class="feed">
@@ -128,4 +73,58 @@
   <p class="muted">None yet.</p>
   {% endif %}
 </section>
+
+{% if mine or may_reassign %}
+<section class="section" id="sharing">
+  <div class="section-head">
+    <h2>Who can see it</h2>
+    {% if mine %}<a href="/watches/{{ watch.id }}/edit#visibility">Change</a>{% endif %}
+  </div>
+  {% if mine %}
+  <p>
+    {% if watch.visibility == "private" %}Only you. Nobody else knows this watch exists.
+    {% elif watch.visibility == "public" %}Every account on this server.
+    {% elif shared_emails %}You and {{ shared_emails|join(", ") }}.
+    {% else %}Only you, and anyone who has the link below.{% endif %}
+  </p>
+  {% if share_url %}
+  <div class="field share-link">
+    <label for="share-url">Link for people without an account</label>
+    <div class="control with-suffix">
+      <input id="share-url" type="text" class="mono" value="{{ share_url }}" readonly data-select-on-focus>
+      <button type="button" class="suffix suffix-button" data-copy="#share-url" data-copied="Copied" hidden>Copy</button>
+    </div>
+    <p class="hint">Anyone who has it sees the prices, the chart and the offers, nothing else, and cannot change anything.</p>
+    <details class="confirm confirm-left">
+      <summary class="btn btn-sm">Replace this link</summary>
+      <form method="post" action="/watches/{{ watch.id }}/share-link" class="confirm-body">
+        {{ ui.csrf() }}
+        <p>The current link stops working at once. People you gave it to will need the new one.</p>
+        <button class="btn btn-sm btn-primary">Create a new link</button>
+      </form>
+    </details>
+  </div>
+  {% elif watch.visibility != "private" %}
+  <p class="muted">No link for people without an account. <a href="/watches/{{ watch.id }}/edit#visibility">Turn it on</a> in the settings.</p>
+  {% endif %}
+  {% endif %}
+
+  {% if may_reassign and accounts %}
+  <form method="post" action="/watches/{{ watch.id }}/owner" class="owner-form">
+    {{ ui.csrf() }}
+    <div class="field">
+      <label for="f-owner">Owner</label>
+      <div class="control with-button">
+        <select id="f-owner" name="owner" required>
+          <option value="">{% if owner_email %}{{ owner_email }} (now){% else %}Nobody yet{% endif %}</option>
+          {% for account in accounts %}<option value="{{ account.id }}">{{ account.email }}</option>{% endfor %}
+        </select>
+        <button class="btn">Change owner</button>
+      </div>
+      <p class="hint">As an administrator you can move {% if mine %}your own watches{% else %}a public watch{% endif %} to another account, for instance when someone leaves. The new owner takes over its settings and receives its alerts. If they already use this name, the watch gets a number after it.</p>
+    </div>
+  </form>
+  {% endif %}
+</section>
+{% endif %}
 {% endblock %}

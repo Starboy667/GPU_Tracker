@@ -413,8 +413,9 @@ def test_dealabs_group_feeds_are_cached_separately():
 
 def test_registry_order_and_defaults():
     hardware = ["ldlc", "materiel", "topachat", "grosbill", "alternate", "idealo", "dealabs"]
-    assert list(SCRAPERS) == [*hardware, "steam", "dlcompare"]
-    assert DEFAULT_SITES == tuple(hardware)  # game sources are opt-in
+    assert list(SCRAPERS) == ["ldlc", "materiel", "topachat", "grosbill", "alternate", "joybuy", "idealo", "dealabs",
+                              "steam", "dlcompare"]
+    assert DEFAULT_SITES == tuple(hardware)  # the original script's sites; the others are picked by presets
     assert DEALABS_GPU_FEED == "https://www.dealabs.com/rss/groupe/cartes-graphiques"
 
 
@@ -423,7 +424,7 @@ def test_registry_kinds():
     assert kinds == {
         "ldlc": KIND_RETAILER, "materiel": KIND_RETAILER, "topachat": KIND_RETAILER, "grosbill": KIND_RETAILER,
         "alternate": KIND_RETAILER, "idealo": KIND_COMPARATOR, "dealabs": KIND_DEALS,
-        "steam": KIND_RETAILER, "dlcompare": KIND_COMPARATOR,
+        "steam": KIND_RETAILER, "dlcompare": KIND_COMPARATOR, "joybuy": KIND_RETAILER,
     }
 
 
@@ -474,3 +475,51 @@ def test_validate_site_url_rejects_a_site_domain_pointing_inside(monkeypatch):
     monkeypatch.setattr(netsafe, "_original_getaddrinfo", resolve)
     with pytest.raises(netsafe.UnsafeURLError, match="private or reserved"):
         validate_site_url("ldlc", "https://www.ldlc.com/recherche/tv/")
+
+
+# --------------------------------------------------------------------------- Joybuy
+
+def test_joybuy_reads_products_from_the_page_data():
+    from pricewatch.scrapers import joybuy
+
+    listings = joybuy.parse(fixture("joybuy.html"))
+    assert len(listings) == 4
+    first = listings[0]
+    assert first.title.startswith("GIGABYTE GeForce RTX 5070 WINDFORCE OC SFF")
+    assert (first.site, first.source, first.price, first.in_stock) == ("Joybuy", "joybuy", 949.99, True)
+    # The address is built from the id alone, so it does not change when the seller rewords the product.
+    assert first.url == "https://www.joybuy.fr/dp/p/10353756"
+    assert [l.price for l in listings] == [949.99, 949.99, 939.99, 929.99]
+    assert listings[3].url == "https://www.joybuy.fr/dp/p/10353682"
+
+
+def test_joybuy_stock_and_unusable_items():
+    import json
+
+    from pricewatch.scrapers import joybuy
+
+    def item(sku, title="Thing", price="10.00", **common):
+        return {"itemCommonView": {"skuId": sku, **common}, "itemTitleView": {"title": title},
+                "itemPriceView": {"priceInfo": {"mainPrice": price}}}
+
+    items = [
+        item("1", inStock=True, isAvailable=True), item("2", inStock=False, isAvailable=True),
+        item("3", inStock=True, isAvailable=False), item("4"), item("1", title="Duplicate"),
+        item("5", price=None), item("6", price="free"), item("7", price="0"), item("abc"), item("8", title="  "),
+        item("9", price="Infinity"), item("10", price="nan"), item("11", price="-5"),
+        {"itemCommonView": "junk"},
+    ]
+    data = "".join('{"itemCompleteView":' + json.dumps(i) + "}," for i in items) + '{"itemCompleteView":{broken'
+    html = "<script>self.__next_f.push([1," + json.dumps(data) + "])</script><script>self.__next_f.push([1,\"bad\\u12\"])</script>"
+    parsed = joybuy.parse(html)
+    assert [(l.url.rsplit("/", 1)[-1], l.in_stock) for l in parsed] == [("1", True), ("2", False), ("3", False), ("4", None)]
+    assert joybuy.parse("<html>nothing here</html>") == []
+
+
+def test_joybuy_search_url_and_fetch():
+    from pricewatch.scrapers import joybuy
+
+    assert joybuy.search_url("lg oled 55") == "https://www.joybuy.fr/s?k=lg%20oled%2055"
+    ctx = RecordingContext(fixture("joybuy.html"))
+    assert len(joybuy.search(ctx, "rtx 5070")) == 4
+    assert ctx.calls == [("get", "https://www.joybuy.fr/s?k=rtx%205070")]

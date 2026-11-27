@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import getpass
 import logging
 import sys
@@ -104,13 +105,21 @@ def cmd_import(args: argparse.Namespace, config: Config) -> int:
         raise SystemExit("Nothing imported:\n  - " + "\n  - ".join(exc.problems)) from exc
     created = skipped = 0
     with _database(config).connect() as conn:
+        if args.owner:
+            owner = users_repo.get_by_email(conn, security.normalize_email(args.owner))
+            if owner is None:
+                raise SystemExit(f"No account for {args.owner}.")
+        else:
+            owner = users_repo.first_admin(conn)
+            if owner is None:
+                raise SystemExit("Create an account first (pricewatch create-user), or name the owner with --owner.")
         for watch in watches:
-            if watches_repo.get_by_name(conn, watch.name):
+            if watches_repo.get_by_name(conn, owner.id, watch.name):
                 skipped += 1
             else:
-                watches_repo.create(conn, watch, iso(utcnow()))
+                watches_repo.create(conn, dataclasses.replace(watch, owner_id=owner.id), iso(utcnow()))
                 created += 1
-    print(f"Imported {created} watches, skipped {skipped} that already exist.")
+    print(f"Imported {created} watches for {owner.email}, skipped {skipped} they already have.")
     return 0
 
 
@@ -133,6 +142,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     importer = sub.add_parser("import", help="import watches from a YAML file")
     importer.add_argument("file")
+    importer.add_argument("--owner", metavar="EMAIL", help="account the watches will belong to (default: the first administrator)")
     importer.set_defaults(func=cmd_import)
     return parser
 

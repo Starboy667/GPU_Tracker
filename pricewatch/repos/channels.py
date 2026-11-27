@@ -18,6 +18,7 @@ def _row(row: sqlite3.Row, box: SecretBox) -> Channel:
         config, readable = {}, False
     return Channel(
         id=row["id"],
+        owner_id=row["owner_id"],
         name=row["name"],
         type=row["type"],
         config=MappingProxyType(config),
@@ -32,7 +33,13 @@ def _row(row: sqlite3.Row, box: SecretBox) -> Channel:
 
 
 def list_all(conn: sqlite3.Connection, box: SecretBox) -> list[Channel]:
+    """Every channel of every owner: for delivering, never for showing."""
     return [_row(r, box) for r in conn.execute("SELECT * FROM channels ORDER BY name COLLATE NOCASE, id")]
+
+
+def list_owned(conn: sqlite3.Connection, box: SecretBox, owner_id: int) -> list[Channel]:
+    rows = conn.execute("SELECT * FROM channels WHERE owner_id = ? ORDER BY name COLLATE NOCASE, id", (owner_id,))
+    return [_row(r, box) for r in rows]
 
 
 def get(conn: sqlite3.Connection, box: SecretBox, channel_id: int) -> Channel | None:
@@ -42,8 +49,8 @@ def get(conn: sqlite3.Connection, box: SecretBox, channel_id: int) -> Channel | 
 
 def create(conn: sqlite3.Connection, box: SecretBox, channel: Channel, now: str) -> Channel:
     cur = conn.execute(
-        "INSERT INTO channels (name, type, config, events, enabled, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-        (channel.name, channel.type, box.seal(channel.config), json.dumps(list(channel.events)),
+        "INSERT INTO channels (owner_id, name, type, config, events, enabled, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (channel.owner_id, channel.name, channel.type, box.seal(channel.config), json.dumps(list(channel.events)),
          int(channel.enabled), now),
     )
     return get(conn, box, cur.lastrowid)

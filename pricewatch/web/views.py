@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
-from pricewatch import deals
+from pricewatch import access, deals
 from pricewatch.db import parse_iso
 from pricewatch.forms import (
     CHANNELS_ALL,
@@ -17,11 +17,12 @@ from pricewatch.forms import (
     STOCK_REQUIRED,
     format_product_urls,
 )
-from pricewatch.models import Settings, StoredListing, Watch
+from pricewatch.models import VISIBILITY_PRIVATE, Settings, StoredListing, User, Watch
 from pricewatch.presets import Preset
 from pricewatch.repos import listings as listings_repo
+from pricewatch.repos import users as users_repo
 from pricewatch.repos import watches as watches_repo
-from pricewatch.web.charts import MONTHS, NBSP, Sparkline, sparkline
+from pricewatch.web.charts import MONTHS, NBSP, Sparkline, line_chart, sparkline
 
 STATE_DEAL = "deal"
 STATE_PAUSED = "paused"
@@ -30,6 +31,7 @@ STATE_EMPTY = "empty"  # checked, nothing found
 STATE_TRACKING = "tracking"
 
 SPARK_DAYS = 30
+CHART_DAYS = 90
 
 
 # --------------------------------------------------------------------------- formatting
@@ -146,15 +148,21 @@ class WatchRow:
     delta_pct: float | None  # best price vs usual price
     listing_count: int
     spark: Sparkline | None
+    mine: bool = True
+    owner: str = ""  # who shares it, for watches that are not the viewer's
+    following: bool = False
 
 
-def watch_rows(conn, settings: Settings, today: date) -> list[WatchRow]:
+def watch_rows(conn, settings: Settings, today: date, viewer: User) -> list[WatchRow]:
+    """One row per watch ``viewer`` may see, deals first."""
     since = (today - timedelta(days=max(settings.baseline_days, SPARK_DAYS) + 1)).isoformat()
     lows_by_watch = listings_repo.daily_lows_by_watch(conn, since=since)
     cheapest = listings_repo.cheapest_by_watch(conn)
     counts = listings_repo.counts_by_watch(conn)
+    emails = {u.id: u.email for u in users_repo.list_all(conn)}
+    followed = watches_repo.followed_ids(conn, viewer.id)
     rows = []
-    for watch in watches_repo.list_all(conn):
+    for watch in access.visible(viewer, watches_repo.list_all(conn)):
         lows = lows_by_watch.get(watch.id, {})
         pricing = pricing_for(watch, lows, settings, today)
         best = cheapest.get(watch.id)
@@ -179,6 +187,9 @@ def watch_rows(conn, settings: Settings, today: date) -> list[WatchRow]:
             delta_pct=delta,
             listing_count=counts.get(watch.id, 0),
             spark=sparkline(lows, today=today, days=SPARK_DAYS),
+            mine=access.owns(viewer, watch),
+            owner=emails.get(watch.owner_id, ""),
+            following=watch.id in followed,
         ))
     order = {STATE_DEAL: 0, STATE_TRACKING: 1, STATE_EMPTY: 2, STATE_WAITING: 3, STATE_PAUSED: 4}
     return sorted(rows, key=lambda row: (order[row.state], row.watch.name.lower()))
@@ -186,9 +197,44 @@ def watch_rows(conn, settings: Settings, today: date) -> list[WatchRow]:
 
 # --------------------------------------------------------------------------- watch form values
 
+def watch_page(conn, watch: Watch, settings: Settings, today: date, *, show_alert_rule: bool = True) -> dict:
+    """What a page about one watch shows: prices, chart, offers. ``show_alert_rule`` adds when it
+    alerts (the owner's target or drop setting), which people with an account see and visitors
+    with only the link do not."""
+    window = max(CHART_DAYS, settings.baseline_days + 1)
+    lows = listings_repo.daily_lows(conn, watch.id, since=(today - timedelta(days=window)).isoformat())
+    listings = listings_repo.for_watch(conn, watch.id)
+    pricing = pricing_for(watch, lows, settings, today)
+    chart_args = dict(
+        today=today, days=CHART_DAYS,
+        usual=pricing.baseline.price if pricing.baseline else None,
+        alert=pricing.threshold if show_alert_rule else None,
+    )
+    available = [item for item in listings if item.in_stock is not False]
+    return {
+        "show_alert_rule": show_alert_rule,
+        "watch": watch,
+        "settings": settings,
+        "pricing": pricing,
+        "listings": listings,
+        "deal_ids": {item.id for item in listings if is_deal(item, pricing)} if show_alert_rule else set(),
+        "best": available[0] if available else None,
+        "lowest": min(lows.items(), key=lambda item: item[1]) if lows else None,
+        "lows": sorted(lows.items(), reverse=True),
+        # One drawing per layout width, so text keeps a readable size at every screen size.
+        "charts": [
+            (name, line_chart(lows, width=width, height=height, **chart_args))
+            for name, width, height in (("chart-wide", 1040, 300), ("chart-medium", 700, 270), ("chart-narrow", 360, 230))
+        ],
+        "chart_days": CHART_DAYS,
+    }
+
+
 def watch_form_values(watch: Watch) -> dict[str, str]:
     """Flatten a watch into the string values its edit form shows."""
     values = {
+        "visibility": watch.visibility,
+        "share_link": "on" if watch.share_token else "",
         "name": watch.name,
         "query": "" if watch.query == watch.name else watch.query,
         "match": "" if watch.match == deals.auto_match(watch.name) else watch.match,
@@ -205,6 +251,7 @@ def watch_form_values(watch: Watch) -> dict[str, str]:
     values.update({f"site_{key}": "on" for key in watch.sites})
     values.update({f"url_{key}": url for key, url in watch.site_urls.items()})
     values.update({f"channel_{cid}": "on" for cid in (watch.channel_ids or ())})
+    values.update({f"share_user_{uid}": "on" for uid in watch.shared_with})
     return values
 
 
@@ -214,6 +261,7 @@ def preset_form_values(preset: Preset) -> dict[str, str]:
         "min_price": number_input(preset.min_price),
         "stock_rule": STOCK_DEFAULT,
         "notify_restock": "on" if preset.notify_restock else "",
+        "visibility": VISIBILITY_PRIVATE,
         "channels_mode": CHANNELS_ALL,
         "enabled": "on",
     }

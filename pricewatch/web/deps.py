@@ -134,12 +134,24 @@ def client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-def render(request: Request, template: str, *, status_code: int = 200, user: User | None = None, **context) -> Response:
+def render(
+    request: Request,
+    template: str,
+    *,
+    status_code: int = 200,
+    user: User | None = None,
+    stateless: bool = False,
+    **context,
+) -> Response:
+    """Render a page. ``stateless`` is for pages served to people without an account (shared
+    links): the session is not read or started, so no cookie is set."""
     svc = services(request)
-    flashes = request.session.pop(SESSION_FLASH, []) if SESSION_FLASH in request.session else []
+    flashes = []
+    if not stateless:
+        flashes = request.session.pop(SESSION_FLASH, []) if SESSION_FLASH in request.session else []
     base = {
         "user": user,
-        "csrf_token": csrf_token(request),
+        "csrf_token": "" if stateless else csrf_token(request),
         "flashes": flashes,
         "busy": svc.scheduler.is_busy,
         "app_version": __version__,

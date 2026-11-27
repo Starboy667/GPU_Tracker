@@ -14,6 +14,7 @@ plain HTTP clients, and automated access is against its terms: keep the check in
 from __future__ import annotations
 
 import json
+import math
 import re
 from urllib.parse import quote_plus
 
@@ -74,7 +75,7 @@ def _amount(value: object) -> float | None:
         amount = float(value)  # the site sends prices as strings: "12.14"
     except (TypeError, ValueError):
         return None
-    return amount if amount > 0 else None
+    return amount if math.isfinite(amount) and amount > 0 else None
 
 
 def _price(offer: dict) -> float | None:

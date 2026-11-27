@@ -61,6 +61,7 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; } /* layout classes must not bring hidden things back */
 
 html { -webkit-text-size-adjust: 100%; }
 
@@ -383,6 +384,18 @@ input:disabled { opacity: 0.55; }
 .more-inline[open] > summary { margin-bottom: 0.25rem; }
 
 .danger-zone { padding-top: 1.5rem; border-top: 1px solid var(--line); }
+
+/* ---------------------------------------------------------------- sharing */
+
+.share-link, .owner-form { max-width: 40rem; margin-top: 1rem; }
+.share-link .confirm { margin-top: 0.625rem; }
+.confirm-left .confirm-body { right: auto; left: 0; }
+.suffix-button { cursor: pointer; font: inherit; font-weight: 550; color: var(--text); }
+.suffix-button:hover { background: var(--line); }
+.suffix-button[hidden] { display: none; }
+.control.with-button { display: flex; gap: 0.5rem; }
+.control.with-button select { min-width: 0; }
+@media (max-width: 30rem) { .control.with-button { flex-direction: column; align-items: stretch; } }
 
 /* ---------------------------------------------------------------- login */
 

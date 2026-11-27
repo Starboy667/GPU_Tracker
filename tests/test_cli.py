@@ -65,12 +65,24 @@ def test_password_prompt(env, monkeypatch):
 def test_import_command(env, tmp_path, capsys):
     source = tmp_path / "watches.yaml"
     source.write_text("watches:\n  - {name: LG OLED55C5, sites: [ldlc]}\n  - {name: RTX 5070, sites: [idealo]}\n")
-    assert cli.main(["import", str(source)]) == 0
-    assert cli.main(["import", str(source)]) == 0
-    out = capsys.readouterr().out
-    assert "Imported 2 watches, skipped 0" in out and "Imported 0 watches, skipped 2" in out
+    with pytest.raises(SystemExit, match="Create an account first"):
+        cli.main(["import", str(source)])  # a watch needs an owner
+    env.migrate()
     with env.connect() as conn:
-        assert [w.name for w in watches.list_all(conn)] == ["LG OLED55C5", "RTX 5070"]
+        boss = users.create(conn, "boss@example.org", "x", True, "2026-11-25T09:00:00Z")
+        friend = users.create(conn, "friend@example.org", "x", False, "2026-11-25T09:00:00Z")
+    assert cli.main(["import", str(source)]) == 0
+    assert cli.main(["import", str(source)]) == 0
+    assert cli.main(["import", str(source), "--owner", "Friend@Example.org"]) == 0
+    out = capsys.readouterr().out
+    assert "Imported 2 watches for boss@example.org, skipped 0" in out and "Imported 0 watches for boss@example.org, skipped 2" in out
+    assert "Imported 2 watches for friend@example.org" in out
+    with env.connect() as conn:
+        owned = sorted((w.name, w.owner_id, w.visibility) for w in watches.list_all(conn))
+    assert owned == [("LG OLED55C5", boss.id, "private"), ("LG OLED55C5", friend.id, "private"),
+                     ("RTX 5070", boss.id, "private"), ("RTX 5070", friend.id, "private")]
+    with pytest.raises(SystemExit, match="No account for ghost@example.org"):
+        cli.main(["import", str(source), "--owner", "ghost@example.org"])
 
     source.write_text("watches:\n  - {name: A, sites: [nope]}\n")
     with pytest.raises(SystemExit, match="unknown site"):

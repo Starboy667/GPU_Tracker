@@ -14,6 +14,20 @@ def test_password_hash_and_verify():
     assert not security.needs_rehash(hashed)
 
 
+def test_only_a_real_mismatch_is_a_wrong_password(monkeypatch):
+    from argon2.exceptions import VerificationError
+
+    hashed = security.hash_password("correct horse battery")
+
+    class ShortOfMemory:
+        def verify(self, target, password):
+            raise VerificationError("Memory allocation error")
+
+    monkeypatch.setattr(security, "_hasher", ShortOfMemory())
+    with pytest.raises(VerificationError):
+        security.verify_password(hashed, "correct horse battery")
+
+
 def test_password_rules():
     assert security.password_problem("123456789") is not None
     assert security.password_problem("1234567890") is None

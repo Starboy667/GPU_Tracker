@@ -52,6 +52,7 @@ def add_delivery(conn: sqlite3.Connection, alert_id: int, channel_id: int, now: 
 
 
 def recent(conn: sqlite3.Connection, *, limit: int = 50, offset: int = 0, watch_id: int | None = None) -> list[Alert]:
+    """Unfiltered: every alert, or those of one watch. Use ``recent_visible`` to show a feed to someone."""
     where, params = ("WHERE watch_id = ?", [watch_id]) if watch_id is not None else ("", [])
     rows = conn.execute(
         f"SELECT * FROM alerts {where} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?", (*params, limit, offset)
@@ -64,15 +65,61 @@ def count(conn: sqlite3.Connection, *, watch_id: int | None = None) -> int:
     return conn.execute(f"SELECT COUNT(*) FROM alerts {where}", params).fetchone()[0]
 
 
-def delivery_summary(conn: sqlite3.Connection, alert_ids: list[int]) -> dict[int, list[tuple[str, str, str | None]]]:
-    """For each alert: (channel name, status, last error) of every delivery."""
+HEALTH_NONE = "none"
+HEALTH_SHOPS = "shops"  # the shops everyone can pick; not the hosts of individual product pages
+HEALTH_ALL = "all"
+PRODUCT_HEALTH_PATTERN = "product:%"  # Alert.site of a health alert about a product-page host
+
+
+def _visible_clause(watch_ids: list[int], health: str) -> tuple[str, list]:
+    """WHERE clause for "alerts of these watches, plus the scraper alerts this viewer may see"."""
+    parts, params = [], []
+    if watch_ids:
+        parts.append(f"watch_id IN ({', '.join('?' * len(watch_ids))})")
+        params += watch_ids
+    if health == HEALTH_ALL:
+        # Every scraper alert, and what is left of watches deleted by earlier versions (which
+        # kept their alerts): nobody owns those any more, so they are for administrators.
+        parts.append("watch_id IS NULL")
+    elif health == HEALTH_SHOPS:
+        # site = '' is an alert from before scraper alerts recorded what they are about:
+        # it may name a product-page host in its text, so it is not for everyone.
+        parts.append("(kind = 'health' AND site != '' AND site NOT LIKE ?)")
+        params.append(PRODUCT_HEALTH_PATTERN)
+    return ("WHERE " + " OR ".join(parts) if parts else "WHERE 0"), params
+
+
+def recent_visible(
+    conn: sqlite3.Connection, watch_ids: list[int], *, health: str = HEALTH_NONE, limit: int = 50, offset: int = 0
+) -> list[Alert]:
+    where, params = _visible_clause(watch_ids, health)
+    rows = conn.execute(
+        f"SELECT * FROM alerts {where} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?", (*params, limit, offset)
+    )
+    return [_alert(r) for r in rows]
+
+
+def count_visible(conn: sqlite3.Connection, watch_ids: list[int], *, health: str = HEALTH_NONE) -> int:
+    where, params = _visible_clause(watch_ids, health)
+    return conn.execute(f"SELECT COUNT(*) FROM alerts {where}", params).fetchone()[0]
+
+
+def delivery_summary(
+    conn: sqlite3.Connection, alert_ids: list[int], *, owner_id: int | None = None
+) -> dict[int, list[tuple[str, str, str | None]]]:
+    """For each alert: (channel name, status, last error) of every delivery.
+
+    With ``owner_id``, only deliveries through that account's channels: where an alert went for
+    somebody else is their business.
+    """
     if not alert_ids:
         return {}
     marks = ", ".join("?" * len(alert_ids))
+    owner_clause, owner_params = ("AND c.owner_id = ?", [owner_id]) if owner_id is not None else ("", [])
     rows = conn.execute(
         f"SELECT d.alert_id, c.name, d.status, d.last_error FROM deliveries d "
-        f"JOIN channels c ON c.id = d.channel_id WHERE d.alert_id IN ({marks}) ORDER BY c.name",
-        alert_ids,
+        f"JOIN channels c ON c.id = d.channel_id WHERE d.alert_id IN ({marks}) {owner_clause} ORDER BY c.name",
+        [*alert_ids, *owner_params],
     )
     out: dict[int, list[tuple[str, str, str | None]]] = {}
     for r in rows:

@@ -3,7 +3,7 @@ import sqlite3
 
 import pytest
 
-from pricewatch.db import Database, iso, parse_iso
+from pricewatch.db import MIGRATIONS, Database, iso, parse_iso
 from pricewatch.models import Alert, Channel, ProductURL, Settings, SiteHealth, Watch
 from pricewatch.repos import alerts, channels, listings, runs, settings, users, watches
 from pricewatch.scrapers.base import Listing
@@ -23,7 +23,7 @@ def make_listing(**kw):
 
 
 def test_migrate_is_idempotent(db: Database):
-    assert db.migrate() == 1
+    assert db.migrate() == len(MIGRATIONS) == 2
     with db.connect() as conn:
         assert conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0
 
@@ -94,7 +94,7 @@ def test_watches_round_trip(db: Database):
                      "sites", "product_urls", "channel_ids", "enabled"):
             assert getattr(saved, name) == getattr(full, name), name
         assert dict(saved.site_urls) == {"ldlc": "https://www.ldlc.com/x"}
-        assert watches.get_by_name(conn, "rtx 5070").id == saved.id
+        assert watches.get_by_name(conn, None, "rtx 5070").id == saved.id  # no owner in this test
 
         updated = watches.update(conn, dataclasses.replace(saved, name="RTX 5070 Ti", channel_ids=None), LATER)
         assert updated.name == "RTX 5070 Ti" and updated.channel_ids is None and updated.updated_at == LATER
@@ -110,11 +110,72 @@ def test_watches_round_trip(db: Database):
         assert watches.get(conn, saved.id) is None and watches.list_all(conn) == []
 
 
-def test_watch_names_are_unique(db: Database):
+def test_watch_names_are_unique_per_owner(db: Database):
     with db.connect() as conn:
-        watches.create(conn, make_watch(), NOW)
+        ann = users.create(conn, "ann@example.org", "h", False, NOW)
+        bob = users.create(conn, "bob@example.org", "h", False, NOW)
+        mine = watches.create(conn, make_watch(owner_id=ann.id), NOW)
         with pytest.raises(sqlite3.IntegrityError):
-            watches.create(conn, make_watch(name="rtx 5070"), NOW)
+            watches.create(conn, make_watch(name="rtx 5070", owner_id=ann.id), NOW)
+        theirs = watches.create(conn, make_watch(owner_id=bob.id), NOW)  # same name, someone else: fine
+        assert watches.get_by_name(conn, ann.id, "RTX 5070").id == mine.id
+        assert watches.get_by_name(conn, bob.id, "rtx 5070").id == theirs.id
+        assert watches.get_by_name(conn, ann.id, "nothing") is None
+
+
+def test_watch_ownership_visibility_and_shares_round_trip(db: Database):
+    with db.connect() as conn:
+        ann = users.create(conn, "ann@example.org", "h", False, NOW)
+        bob = users.create(conn, "bob@example.org", "h", False, NOW)
+        cat = users.create(conn, "cat@example.org", "h", False, NOW)
+        saved = watches.create(conn, make_watch(owner_id=ann.id, visibility="shared", shared_with=(cat.id, bob.id),
+                                                share_token="tok-1"), NOW)
+        assert (saved.owner_id, saved.visibility, saved.share_token) == (ann.id, "shared", "tok-1")
+        assert saved.shared_with == (bob.id, cat.id)
+        assert watches.list_all(conn)[0].shared_with == (bob.id, cat.id)
+        assert watches.get_by_share_token(conn, "tok-1").id == saved.id
+        assert watches.get_by_share_token(conn, "") is None and watches.get_by_share_token(conn, "nope") is None
+
+        changed = watches.update(conn, dataclasses.replace(saved, visibility="private", shared_with=(), share_token=None), LATER)
+        assert (changed.visibility, changed.shared_with, changed.share_token) == ("private", (), None)
+        watches.set_share_token(conn, saved.id, "tok-2", LATER)
+        assert watches.get(conn, saved.id).share_token == "tok-2"
+        with pytest.raises(sqlite3.IntegrityError):  # a link opens one watch only
+            watches.create(conn, make_watch(name="Other", owner_id=bob.id, share_token="tok-2"), NOW)
+
+
+def test_followers(db: Database):
+    with db.connect() as conn:
+        ann = users.create(conn, "ann@example.org", "h", False, NOW)
+        bob = users.create(conn, "bob@example.org", "h", False, NOW)
+        w = watches.create(conn, make_watch(owner_id=ann.id, visibility="public"), NOW)
+        watches.follow(conn, w.id, bob.id)
+        watches.follow(conn, w.id, bob.id)  # idempotent
+        assert watches.followers(conn, w.id) == (bob.id,) and watches.followed_ids(conn, bob.id) == {w.id}
+        watches.unfollow(conn, w.id, bob.id)
+        assert watches.followers(conn, w.id) == () and watches.followed_ids(conn, bob.id) == set()
+
+
+def test_deleting_an_account_removes_what_it_owned_and_its_place_in_shares(db: Database, box: SecretBox):
+    with db.connect() as conn:
+        ann = users.create(conn, "ann@example.org", "h", False, NOW)
+        bob = users.create(conn, "bob@example.org", "h", False, NOW)
+        hers = watches.create(conn, make_watch(owner_id=ann.id, visibility="shared", shared_with=(bob.id,)), NOW)
+        his = watches.create(conn, make_watch(name="His", owner_id=bob.id, visibility="shared", shared_with=(ann.id,)), NOW)
+        watches.follow(conn, his.id, ann.id)
+        channels.create(conn, box, Channel(name="Hers", type="ntfy", config={}, owner_id=ann.id), NOW)
+        channels.create(conn, box, Channel(name="His", type="ntfy", config={}, owner_id=bob.id), NOW)
+        listings.save(conn, hers.id, make_listing(), None, None, NOW)
+        alerts.create(conn, Alert(kind="deal", watch_id=hers.id, watch_name="RTX 5070"), NOW)
+        alerts.create(conn, Alert(kind="deal", watch_id=his.id, watch_name="His"), NOW)
+
+        users.delete(conn, ann.id)
+        assert [w.name for w in watches.list_all(conn)] == ["His"]
+        assert watches.get(conn, his.id).shared_with == () and watches.followers(conn, his.id) == ()
+        assert [c.name for c in channels.list_all(conn, box)] == ["His"]
+        assert [a.watch_name for a in alerts.recent(conn)] == ["His"]
+        assert conn.execute("SELECT COUNT(*) FROM listings").fetchone()[0] == 0
+        assert users.admin_ids(conn) == set() and users.first_admin(conn) is None
 
 
 def test_listings_price_points_only_on_change(db: Database):
@@ -196,10 +257,10 @@ def test_deleting_a_watch_cascades(db: Database):
         lid = listings.save(conn, w.id, make_listing(), None, None, NOW)
         listings.record_daily_low(conn, w.id, "2026-11-25", 600)
         alert_id = alerts.create(conn, Alert(kind="deal", watch_id=w.id, watch_name=w.name), NOW)
+        other = alerts.create(conn, Alert(kind="health", title="LDLC broken"), NOW)
         watches.delete(conn, w.id)
         assert listings.price_points(conn, lid) == [] and listings.daily_lows(conn, w.id) == {}
-        kept = alerts.recent(conn)[0]
-        assert kept.id == alert_id and kept.watch_id is None and kept.watch_name == "RTX 5070"
+        assert [a.id for a in alerts.recent(conn)] == [other] and alert_id != other  # its alerts go with it
 
 
 def test_channels_are_encrypted_at_rest(db: Database, box: SecretBox):

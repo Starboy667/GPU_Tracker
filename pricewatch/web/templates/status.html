@@ -87,7 +87,7 @@
   <table class="table table-stack">
     <thead><tr><th scope="col">Started</th><th scope="col">Result</th><th scope="col" class="num">Watches</th><th scope="col" class="num">Offers</th><th scope="col" class="num">Alerts</th><th scope="col">Problems</th></tr></thead>
     <tbody>
-      {% for r in runs %}
+      {% for r, problems in runs %}
       <tr>
         <td data-label="Started">{{ r.started_at|localtime }} <span class="muted">{{ "on request" if r.trigger == "manual" else "scheduled" }}</span></td>
         <td data-label="Result">
@@ -100,13 +100,14 @@
         <td class="num" data-label="Offers">{{ r.listings }}</td>
         <td class="num" data-label="Alerts">{{ r.alerts }}</td>
         <td data-label="Problems">
-          {% if r.errors %}
+          {% if problems %}
           <details class="more more-inline">
-            <summary>{{ r.errors|length }} problem{{ "s" if r.errors|length > 1 }}</summary>
+            <summary>{{ problems|length }} problem{{ "s" if problems|length > 1 }}</summary>
             <ul class="problem-list">
-              {% for watch_name, site, error in r.errors %}<li>{% if watch_name %}{{ watch_name }}, {% endif %}{% if site %}<strong>{{ site }}</strong>: {% endif %}{{ error }}</li>{% endfor %}
+              {% for watch_name, site, error in problems %}<li>{% if watch_name %}{{ watch_name }}, {% endif %}{% if site %}<strong>{{ site }}</strong>: {% endif %}{{ error }}</li>{% endfor %}
             </ul>
           </details>
+          {% elif r.errors %}<span class="muted">None on watches you can see</span>
           {% else %}<span class="muted">None</span>{% endif %}
         </td>
       </tr>

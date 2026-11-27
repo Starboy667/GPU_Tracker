@@ -4,8 +4,9 @@ Watches the price and stock of products in French shops and tells you when one b
 It started as a script that tracked graphics cards and pinged Discord; it is now a small web app
 that follows any product, behind a login, with alerts on the channels you choose.
 
-- **Any product**: search LDLC, Materiel.net, TopAchat, Grosbill, Alternate, Idealo and Dealabs by
-  name, or follow the exact page of a product on any shop that publishes its price in a standard way.
+- **Any product**: search LDLC, Materiel.net, TopAchat, Grosbill, Alternate, Joybuy, Idealo and
+  Dealabs by name, or follow the exact page of a product on any shop that publishes its price in a
+  standard way.
 - **Video games**: Steam's own price, and every key-shop offer listed by DLCompare (Instant Gaming,
   Eneba, Kinguin, G2A...), filtered by platform, edition and region.
 - **No target price needed**: it learns each product's usual price and alerts on a real drop. A
@@ -13,6 +14,9 @@ that follows any product, behind a login, with alerts on the channels you choose
 - **Alerts where you read them**: Discord, Telegram, email, generic webhook, Slack (and
   Mattermost / Rocket.Chat), ntfy, Gotify, Pushover, Free Mobile SMS, plus anything
   [Apprise](https://github.com/caronc/apprise/wiki) supports (Matrix, Signal, Teams, WhatsApp, ...).
+- **Yours, or shared**: every watch belongs to an account and is private until its owner shares
+  it with chosen accounts, with everyone on the server, or with a read-only link that needs no
+  account. People who can see a watch can ask for its alerts on their own channels.
 - **Self-hosted**: one container, one SQLite file, email + password accounts.
 
 ## Run it locally
@@ -95,6 +99,8 @@ Notes on the sources:
   home connection: LDLC, Materiel.net, Boulanger, Rue du Commerce and Son-Vidéo work; Amazon needs
   the selector; Darty, Fnac and Cdiscount block it, follow them through Idealo instead.
 
+- **Joybuy** (JD.com's European shop) is a general marketplace: its results are read from the data
+  its search page embeds for its own rendering.
 - **Steam** is read through the JSON endpoints of its store (French prices). Searching a name
   returns the game alone when a result bears exactly that name; otherwise give the store page
   (`https://store.steampowered.com/app/1245620/ELDEN_RING/`) so DLC and sequels stay out.
@@ -115,8 +121,20 @@ Do not go below about 15 minutes between checks: the shops will block you.
 ## Accounts and security
 
 - Accounts are created by an administrator (**Settings > Manage accounts**) or from the shell;
-  there is no public sign-up and no email recovery. Everyone signed in shares the same watches and
-  channels; only administrators change settings and accounts.
+  there is no public sign-up and no email recovery. Administrators manage settings and accounts.
+  They do not see other people's private watches or anybody's channels.
+- **Watches** belong to whoever created them. Only the owner changes, pauses, deletes or shares
+  one. Visibility is *private* (the default: nobody else knows it exists), *shared* (with the
+  accounts picked, a link, or both) or *public* (every account). The link (`/s/<random>`) shows
+  prices, chart and offers, read-only, without an account; replacing it or making the watch
+  private kills the old address at once. The link shows prices, not the owner's alert target.
+  Only an administrator can move a watch to another account (their own or a public one).
+- "Check now" on the home page checks your own watches; for an administrator, everyone's.
+- **Channels** belong to one account: nobody else sees, uses or tests them. A watch alerts its
+  owner's channels, plus those of every account that follows it and can still see it.
+- Scraper alerts about a shop go to every channel that asked for them; those about the host of a
+  product page only to administrators, since the host says what somebody is watching.
+- Deleting an account deletes its watches, their history and its channels.
 - Passwords are hashed with Argon2id. Sign-in is throttled: 5 failures per client address, and
   50 per account from anywhere, per 15 minutes (so nobody can lock you out by guessing).
   Sessions are signed cookies (HttpOnly, SameSite=Lax, Secure over https); changing a password
@@ -129,12 +147,11 @@ Do not go below about 15 minutes between checks: the shops will block you.
   (`pricewatch/netsafe.py`); responses are capped in size and time. Shop overrides must stay on
   the shop's own domain. Title patterns run with a time limit, so a slow one is reported on the
   watch instead of stalling the checks.
-- Accounts are for people you trust: there is no per-user separation of watches or channels.
 
 ```bash
 python -m pricewatch create-user someone@example.org [--admin]
 python -m pricewatch reset-password someone@example.org
-python -m pricewatch import examples/gpu-watches.yaml
+python -m pricewatch import examples/gpu-watches.yaml [--owner someone@example.org]
 python -m pricewatch check        # one check now, in the foreground
 ```
 
@@ -150,6 +167,7 @@ pricewatch/
   repos/        SQLite access             db.py        schema and migrations
   forms.py      form validation           portability.py  YAML import / export
   netsafe.py    outbound request guard    security.py  passwords, CSRF, throttling, encryption
+  access.py     who may see and change what (every route goes through it)
   web/          FastAPI app, routes, Jinja templates, one CSS file, one small script
 ```
 

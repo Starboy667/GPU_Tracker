@@ -39,6 +39,39 @@
     sync();
   });
 
+  // Watch form: the accounts list and the link option follow the chosen visibility.
+  document.querySelectorAll("[data-visibility-picker]").forEach(function (picker) {
+    var form = picker.closest("form");
+    function sync() {
+      var selected = picker.querySelector('input[name="visibility"]:checked');
+      var value = selected ? selected.value : "private";
+      form.querySelectorAll("[data-visibility-only]").forEach(function (block) {
+        var on = block.dataset.visibilityOnly.split(" ").indexOf(value) !== -1;
+        block.hidden = !on;
+        block.querySelectorAll("input").forEach(function (input) { input.disabled = !on; });
+      });
+    }
+    picker.addEventListener("change", sync);
+    sync();
+  });
+
+  // Share link: select it on focus, and offer a copy button where the clipboard is available.
+  document.querySelectorAll("[data-select-on-focus]").forEach(function (input) {
+    input.addEventListener("focus", function () { input.select(); });
+  });
+  document.querySelectorAll("[data-copy]").forEach(function (button) {
+    var source = document.querySelector(button.dataset.copy);
+    if (!source || !navigator.clipboard) return;
+    button.hidden = false;
+    var label = button.textContent;
+    button.addEventListener("click", function () {
+      navigator.clipboard.writeText(source.value).then(function () {
+        button.textContent = button.dataset.copied;
+        window.setTimeout(function () { button.textContent = label; }, 1500);
+      });
+    });
+  });
+
   // Line charts: a crosshair that snaps to the nearest day, with the value in a tooltip.
   // The same values are in the table under the chart, so nothing depends on hovering.
   document.querySelectorAll("[data-chart-root]").forEach(function (root) {

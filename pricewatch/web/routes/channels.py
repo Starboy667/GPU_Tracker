@@ -4,9 +4,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from starlette.concurrency import run_in_threadpool
 
-from pricewatch import forms
+from pricewatch import access, forms
 from pricewatch.db import iso
-from pricewatch.models import Channel
+from pricewatch.models import Channel, User
 from pricewatch.notify import CHANNEL_TYPES
 from pricewatch.notify.base import EVENT_KINDS, ChannelType, masked_config
 from pricewatch.repos import channels as channels_repo
@@ -21,11 +21,12 @@ EVENT_LABELS = {
 }
 
 
-def _load(request: Request, channel_id: int) -> Channel:
+def _load(request: Request, channel_id: int, user: User) -> Channel:
+    """A channel of ``user``. Someone else's does not exist as far as they are concerned."""
     svc = services(request)
     with svc.db.connect() as conn:
         channel = channels_repo.get(conn, svc.box, channel_id)
-    if channel is None:
+    if channel is None or not access.owns_channel(user, channel):
         raise NotFound
     return channel
 
@@ -69,7 +70,7 @@ def list_channels(request: Request):
     user = current_user(request)
     svc = services(request)
     with svc.db.connect() as conn:
-        channels = channels_repo.list_all(conn, svc.box)
+        channels = channels_repo.list_owned(conn, svc.box, user.id)
     return render(
         request, "channels.html", user=user, nav="channels", channels=channels,
         types=CHANNEL_TYPES, event_labels=EVENT_LABELS,
@@ -91,7 +92,9 @@ async def create_channel(request: Request, type: str = ""):
     form = await read_form(request)
     channel_type = _type_of(type)
     svc = services(request)
-    channel, errors = forms.parse_channel(form, channel_type, allow_private=svc.config.allow_private_notify_urls)
+    channel, errors = forms.parse_channel(
+        form, channel_type, allow_private=svc.config.allow_private_notify_urls, owner_id=user.id
+    )
     if channel is None:
         return _form_page(request, user, channel_type, values=dict(form), errors=errors, status_code=422)
     with svc.db.connect() as conn:
@@ -103,7 +106,7 @@ async def create_channel(request: Request, type: str = ""):
 @router.get("/channels/{channel_id}/edit")
 def edit_channel(request: Request, channel_id: int):
     user = current_user(request)
-    channel = _load(request, channel_id)
+    channel = _load(request, channel_id, user)
     channel_type = _type_of(channel.type)
     return _form_page(request, user, channel_type, values=_values(channel_type, channel), channel=channel)
 
@@ -112,7 +115,7 @@ def edit_channel(request: Request, channel_id: int):
 async def update_channel(request: Request, channel_id: int):
     user = current_user(request)
     form = await read_form(request)
-    existing = _load(request, channel_id)
+    existing = _load(request, channel_id, user)
     channel_type = _type_of(existing.type)
     svc = services(request)
     channel, errors = forms.parse_channel(
@@ -129,9 +132,9 @@ async def update_channel(request: Request, channel_id: int):
 
 @router.post("/channels/{channel_id}/toggle")
 async def toggle_channel(request: Request, channel_id: int):
-    current_user(request)
+    user = current_user(request)
     await read_form(request)
-    channel = _load(request, channel_id)
+    channel = _load(request, channel_id, user)
     svc = services(request)
     with svc.db.connect() as conn:
         channels_repo.set_enabled(conn, channel.id, not channel.enabled)
@@ -141,9 +144,9 @@ async def toggle_channel(request: Request, channel_id: int):
 
 @router.post("/channels/{channel_id}/test")
 async def test_channel(request: Request, channel_id: int):
-    current_user(request)
+    user = current_user(request)
     await read_form(request)
-    channel = _load(request, channel_id)
+    channel = _load(request, channel_id, user)
     svc = services(request)
     if not svc.test_slots.acquire(blocking=False):
         flash(request, "Other tests are still being sent. Try again in a moment.", "error")
@@ -163,9 +166,9 @@ async def test_channel(request: Request, channel_id: int):
 
 @router.post("/channels/{channel_id}/delete")
 async def delete_channel(request: Request, channel_id: int):
-    current_user(request)
+    user = current_user(request)
     await read_form(request)
-    channel = _load(request, channel_id)
+    channel = _load(request, channel_id, user)
     svc = services(request)
     with svc.db.connect() as conn:
         channels_repo.delete(conn, channel.id)

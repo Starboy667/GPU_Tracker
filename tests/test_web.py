@@ -259,7 +259,7 @@ def test_create_watch_then_first_check_finds_a_deal(admin):
     detail = admin.get("/watches/1")
     assert detail.status_code == 200
     assert "MSI RTX 5070 12G" in detail.text and "RTX 5080" not in detail.text
-    assert detail.text.count('class="chip chip-good">Deal') >= 1 and "your target price" in detail.text
+    assert detail.text.count('class="chip chip-good">Deal') >= 1 and "target price" in detail.text
     assert 'data-chart' in detail.text and "Show these prices as a table" in detail.text
     assert [m.title for _, _, m in admin.sent] == ["🔥 1 deal"]
 
@@ -285,7 +285,7 @@ def test_watch_form_errors_keep_what_was_typed(admin):
 def test_duplicate_watch_name_is_a_form_error(admin):
     admin.post("/watches", WATCH)
     again = admin.post("/watches", {**WATCH, "name": "rtx 5070"})
-    assert again.status_code == 422 and "Another watch already has this name." in again.text
+    assert again.status_code == 422 and "You already have a watch with this name." in again.text
 
 
 def test_edit_pause_check_delete(admin):
@@ -364,7 +364,7 @@ def test_import_and_export(admin):
     assert admin.post("/watches/import", {"yaml": text}).headers["location"] == "/"
     assert "Imported 2 watches." in admin.get("/").text
     again = admin.post("/watches/import", {"yaml": text}, follow=True)
-    assert "Imported 0 watches. Skipped 2 that already exist" in again.text
+    assert "Imported 0 watches. Skipped 2 you already have" in again.text
 
     exported = admin.get("/watches/export.yaml")
     assert exported.headers["content-type"].startswith("application/yaml")
@@ -440,13 +440,22 @@ def test_a_member_cannot_redirect_a_channel_to_collect_its_secret(admin):
     admin.post("/logout")
     admin.login("friend@example.org", "friend long password")
 
+    # Someone else's channel does not exist for them: nothing to read, edit, test, switch or delete.
+    assert "No channel yet" in admin.get("/channels").text
+    assert admin.get("/channels/1/edit").status_code == 404
     hijack = admin.post("/channels/1", {**NTFY, "cfg_server_url": "https://attacker.example", "cfg_token": ""})
-    assert hijack.status_code == 422 and "Enter it again: the destination of this channel changed." in hijack.text
-    admin.post("/channels/1/test")
-    assert all(config["server_url"] == "https://ntfy.example.org" for _, config, _ in admin.sent)
+    assert hijack.status_code == 404
+    for action in ("test", "toggle", "delete"):
+        assert admin.post(f"/channels/1/{action}").status_code == 404
+    assert admin.sent == []
     with admin.db() as conn:
-        assert channels_repo.get(conn, admin.svc.box, 1).config["server_url"] == "https://ntfy.example.org"
-    assert "tk_admin" not in admin.get("/channels/1/edit").text
+        untouched = channels_repo.get(conn, admin.svc.box, 1)
+    assert untouched.config["server_url"] == "https://ntfy.example.org" and untouched.enabled
+
+    # And on their own channel, moving it elsewhere still means typing its secret again.
+    admin.post("/channels?type=ntfy", {**NTFY, "cfg_server_url": "https://ntfy.example.org", "cfg_token": "tk_friend"})
+    moved = admin.post("/channels/2", {**NTFY, "cfg_server_url": "https://elsewhere.example", "cfg_token": ""})
+    assert moved.status_code == 422 and "Enter it again: the destination of this channel changed." in moved.text
 
 
 def test_slow_actions_are_limited_in_number(admin):
@@ -490,7 +499,7 @@ def test_alerts_page_paginates_and_explains_missing_channels(admin):
     admin.post("/watches", WATCH)
     admin.run_checks()
     first = admin.get("/alerts")
-    assert "45 alerts" in first.text and "Page 1 of 2" in first.text and "Not sent anywhere" in first.text
+    assert "45 alerts" in first.text and "Page 1 of 2" in first.text and "Not sent to you: you had no channel for it." in first.text
     assert "Page 2 of 2" in admin.get("/alerts?page=2").text
     assert admin.get("/alerts?page=0").status_code == 200
 
@@ -659,3 +668,414 @@ def test_unknown_pages(admin):
     assert missing.status_code == 404 and "Page not found" in missing.text
     assert admin.get("/watches/abc").status_code == 404
     assert admin.get("/alerts?page=x").status_code == 404
+
+
+# ------------------------------------------------------------------ whose watch is it, and who may see it
+
+BOB = ("bob@example.org", "bob's long password")
+CAT = ("cat@example.org", "cat's long password")
+
+
+def add_account(site, email, password, **extra):
+    assert site.post("/users", {"email": email, "password": password, **extra}).status_code == 303
+
+
+def switch(site, email, password):
+    site.post("/logout")
+    assert site.login(email, password).status_code == 303
+
+
+@pytest.fixture
+def people(admin):
+    """The administrator signed in, with two more accounts (ids 2 and 3) to share with."""
+    add_account(admin, *BOB)
+    add_account(admin, *CAT)
+    return admin
+
+
+OWNER_ACTIONS = ("", "/toggle", "/check", "/delete", "/share-link")
+
+
+def test_a_new_watch_is_private_and_invisible_to_everyone_else(people):
+    people.shop["results"] = [offer(900)]
+    people.post("/watches", WATCH)
+    people.run_checks()
+    assert "Private" in people.get("/watches/1").text and "Only you. Nobody else knows" in people.get("/watches/1").text
+
+    switch(people, *BOB)
+    home = people.get("/").text
+    assert "RTX 5070" not in home and "Nothing is being watched yet" in home
+    assert people.get("/watches/1").status_code == 404 and people.get("/watches/1/edit").status_code == 404
+    for action in (*OWNER_ACTIONS, "/follow", "/owner"):
+        assert people.post("/watches/1" + action, {**WATCH, "owner": "2"}).status_code == 404, action
+    assert "RTX 5070" not in people.get("/alerts").text and "No alert yet" in people.get("/alerts").text
+    assert "RTX 5070" not in people.get("/status").text
+    assert "RTX 5070" not in people.get("/watches/export.yaml").text
+    with people.db() as conn:
+        watch = watches_repo.get(conn, 1)
+    assert (watch.owner_id, watch.visibility, watch.enabled, watch.name) == (1, "private", True, "RTX 5070")
+
+
+def test_two_accounts_can_use_the_same_name(people):
+    people.post("/watches", WATCH)
+    switch(people, *BOB)
+    assert people.post("/watches", WATCH).headers["location"] == "/watches/2"
+    assert people.post("/watches", WATCH).status_code == 422  # but not twice for one account
+    assert people.get("/").text.count('class="row-link"') == 1
+
+
+def test_a_shared_watch_is_read_only_for_the_people_it_is_shared_with(people):
+    people.shop["results"] = [offer(900)]
+    form = people.get("/watches/new?preset=generic").text
+    assert 'name="share_user_2"' in form and "bob@example.org" in form and 'name="share_user_1"' not in form
+    people.post("/watches", {**WATCH, "visibility": "shared", "share_user_2": "on", "share_user_99": "on"})
+    people.run_checks()
+    owner_view = people.get("/watches/1").text
+    assert "Shared" in owner_view and "You and bob@example.org." in owner_view
+
+    switch(people, *BOB)
+    home = people.get("/").text
+    assert "From other people" in home and "From admin@example.org" in home and "RTX 5070" in home
+    assert "You have no watch of your own yet" in home
+    page = people.get("/watches/1")
+    assert page.status_code == 200 and "Shared with you by admin@example.org" in page.text
+    assert "MSI RTX 5070 12G" in page.text and "Receive its alerts" in page.text
+    assert "/watches/1/edit" not in page.text and "/watches/1/delete" not in page.text and "/watches/1/owner" not in page.text
+    assert people.get("/watches/1/edit").status_code == 403
+    for action in OWNER_ACTIONS:
+        refused = people.post("/watches/1" + action, WATCH)
+        assert refused.status_code == 403 and "Only the owner" in refused.text, action
+    assert people.post("/watches/1/owner", {"owner": "2"}).status_code == 403
+    assert "RTX 5070" in people.get("/alerts").text  # they see what it found
+
+    switch(people, *CAT)  # not on the list
+    assert people.get("/watches/1").status_code == 404 and "RTX 5070" not in people.get("/").text
+    with people.db() as conn:
+        assert watches_repo.get(conn, 1).enabled and watches_repo.get(conn, 1).shared_with == (2,)
+
+
+def test_shared_needs_someone_or_a_link(people):
+    refused = people.post("/watches", {**WATCH, "visibility": "shared"})
+    assert refused.status_code == 422 and "Pick at least one account to share with, or turn the link on" in refused.text
+    assert people.post("/watches", {**WATCH, "visibility": "everyone"}).status_code == 422
+    assert people.post("/watches", {**WATCH, "visibility": "shared", "share_link": "on"}).status_code == 303
+
+
+def test_a_public_watch_is_seen_by_every_account(people):
+    people.post("/watches", {**WATCH, "visibility": "public"})
+    for account in (BOB, CAT):
+        switch(people, *account)
+        assert "A public watch by admin@example.org" in people.get("/watches/1").text
+        assert "public" in people.get("/").text
+    switch(people, *ADMIN)  # an account created afterwards sees it too
+    add_account(people, "dan@example.org", "dan's long password")
+    switch(people, "dan@example.org", "dan's long password")
+    assert people.get("/watches/1").status_code == 200
+
+
+def test_following_sends_the_alerts_to_my_own_channels(people):
+    people.post("/channels?type=ntfy", {**NTFY, "name": "Owner phone"})
+    people.post("/watches", {**WATCH, "visibility": "public"})
+    switch(people, *BOB)
+    assert "no channel yet" in people.post("/watches/1/follow", follow=True).text
+    people.post("/channels?type=ntfy", {**NTFY, "name": "Bob phone", "cfg_topic": "bob"})
+    assert people.post("/watches/1/follow", {"following": "off"}).status_code == 303
+    followed = people.post("/watches/1/follow", follow=True)
+    assert "You will receive the alerts" in followed.text and "Stop receiving its alerts" in followed.text
+    assert "Following" in people.get("/").text
+
+    people.shop["results"] = [offer(900)]
+    people.svc.checker.run()
+    assert sorted(config["topic"] for _, config, _ in people.sent) == ["bob", "deals"]
+    alerts = people.get("/alerts").text
+    assert "Bob phone: delivered" in alerts and "Owner phone" not in alerts  # where it went for others is theirs
+    switch(people, *CAT)  # sees the watch, did not ask for its alerts
+    assert "Bob phone" not in people.get("/alerts").text and "RTX 5070" in people.get("/alerts").text
+
+    switch(people, *ADMIN)
+    assert "Owner phone: delivered" in people.get("/alerts").text
+    assert people.post("/watches/1/follow").status_code == 403  # owners use their own channel settings
+
+
+def test_followers_stop_receiving_when_they_lose_access(people):
+    people.post("/watches", {**WATCH, "visibility": "public"})
+    switch(people, *BOB)
+    people.post("/channels?type=ntfy", {**NTFY, "cfg_topic": "bob"})
+    people.post("/watches/1/follow")
+    switch(people, *ADMIN)
+    people.post("/watches/1", {**WATCH, "visibility": "private"})
+    with people.db() as conn:
+        assert watches_repo.followers(conn, 1) == ()
+    people.shop["results"] = [offer(900)]
+    people.run_checks()
+    assert people.sent == []
+    with people.db() as conn:
+        assert len(alerts_repo.recent(conn)) == 1  # the deal was found, just not sent to the former follower
+
+
+def test_share_link_opens_a_read_only_page_without_an_account(people):
+    people.shop["results"] = [offer(900)]
+    people.post("/watches", {**WATCH, "visibility": "shared", "share_link": "on"})
+    people.run_checks()
+    owner_page = people.get("/watches/1").text
+    link = re.search(r'value="http://testserver(/s/[A-Za-z0-9_-]{40,})"', owner_page).group(1)
+    assert "Link on" in owner_page and "anyone who has the link" in owner_page
+
+    people.post("/logout")
+    people.client.cookies.clear()
+    page = people.get(link)
+    assert page.status_code == 200 and "set-cookie" not in page.headers
+    assert "RTX 5070" in page.text and "MSI RTX 5070 12G" in page.text and "read-only" in page.text
+    for private in ("admin@example.org", "/watches/1", "csrf_token", "Sign out", "Alerts for this watch", "/edit"):
+        assert private not in page.text, private
+    assert page.headers["cache-control"] == "no-store" and "noindex" in page.text
+    for wrong in ("/s/" + "x" * 43, "/s/x", "/s/" + "y" * 500):
+        missing = people.get(wrong)
+        assert missing.status_code == 404 and "This link does not work" in missing.text and "set-cookie" not in missing.headers
+    assert people.get("/watches/1").status_code == 303  # the link opens that page only
+
+    people.login()
+    assert people.post("/watches/1/share-link").status_code == 303
+    new_link = re.search(r'value="http://testserver(/s/[A-Za-z0-9_-]{40,})"', people.get("/watches/1").text).group(1)
+    assert new_link != link
+    people.post("/logout")
+    assert people.get(link).status_code == 404 and people.get(new_link).status_code == 200
+
+    people.login()
+    people.post("/watches/1", {**WATCH, "visibility": "private", "share_link": "on"})  # no link on a private watch
+    assert people.post("/watches/1/share-link").status_code == 404
+    people.post("/logout")
+    assert people.get(new_link).status_code == 404
+    with people.db() as conn:
+        assert watches_repo.get(conn, 1).share_token is None
+
+
+def test_share_link_survives_other_edits_and_can_be_turned_off(people):
+    people.post("/watches", {**WATCH, "visibility": "public", "share_link": "on"})
+    with people.db() as conn:
+        token = watches_repo.get(conn, 1).share_token
+    people.post("/watches/1", {**WATCH, "name": "Renamed", "visibility": "public", "share_link": "on"})
+    with people.db() as conn:
+        assert watches_repo.get(conn, 1).share_token == token  # same address after an unrelated change
+    people.post("/watches/1", {**WATCH, "name": "Renamed", "visibility": "public"})
+    page = people.get("/watches/1").text
+    assert "No link for people without an account" in page and "/s/" not in page
+    people.post("/logout")
+    assert people.get("/s/" + token).status_code == 404
+
+
+def test_giving_a_watch_to_someone_else(people):
+    people.post("/channels?type=ntfy", NTFY)
+    people.post("/watches", {**WATCH, "visibility": "shared", "share_user_2": "on", "channels_mode": "selected", "channel_1": "on"})
+    switch(people, *BOB)
+    people.post("/watches/1/follow")
+    switch(people, *ADMIN)
+    assert "Pick the account" in people.post("/watches/1/owner", {"owner": ""}, follow=True).text
+    assert "Pick the account" in people.post("/watches/1/owner", {"owner": "999"}, follow=True).text
+    moved = people.post("/watches/1/owner", {"owner": "2"})
+    assert moved.headers["location"] == "/"  # no longer theirs to see
+    with people.db() as conn:
+        watch = watches_repo.get(conn, 1)
+        assert (watch.owner_id, watch.channel_ids, watch.shared_with) == (2, None, ())
+        assert watches_repo.followers(conn, 1) == ()  # an owner is not a follower
+    assert people.get("/watches/1").status_code == 404
+    switch(people, *BOB)
+    assert "Edit" in people.get("/watches/1").text and people.get("/watches/1/edit").status_code == 200
+
+
+def test_an_administrator_can_rehome_a_public_watch_but_not_a_private_one(people):
+    switch(people, *BOB)
+    people.post("/watches", {**WATCH, "visibility": "public"})
+    people.post("/watches", {**WATCH, "name": "Secret"})
+    switch(people, *CAT)
+    assert people.post("/watches/1/owner", {"owner": "3"}).status_code == 403  # a member is not an administrator
+    switch(people, *ADMIN)
+    page = people.get("/watches/1").text
+    assert "As an administrator you can move a public watch" in page and "/watches/1/edit" not in page
+    assert people.post("/watches/2/owner", {"owner": "1"}).status_code == 404  # private: not even visible
+    assert people.post("/watches/1/owner", {"owner": "3"}).status_code == 303
+    with people.db() as conn:
+        assert watches_repo.get(conn, 1).owner_id == 3 and watches_repo.get(conn, 2).owner_id == 2
+
+
+def test_a_member_cannot_hand_a_watch_to_someone_else(people):
+    """Otherwise its alerts, with whatever title and link, would land on that person's channels."""
+    switch(people, *BOB)
+    people.post("/watches", WATCH)
+    page = people.get("/watches/1").text
+    assert "/watches/1/owner" not in page and "Change owner" not in page
+    refused = people.post("/watches/1/owner", {"owner": "3"})
+    assert refused.status_code == 403
+    with people.db() as conn:
+        assert watches_repo.get(conn, 1).owner_id == 2
+
+
+def test_moving_a_watch_never_tells_what_the_new_owner_privately_has(people):
+    switch(people, *BOB)
+    people.post("/watches", {**WATCH, "name": "Secret plan"})  # private
+    switch(people, *ADMIN)
+    people.post("/watches", {**WATCH, "name": "Secret plan", "visibility": "public"})
+    moved = people.post("/watches/2/owner", {"owner": "2"}, follow=True)
+    assert "now belongs to bob@example.org" in moved.text and "already has" not in moved.text
+    with people.db() as conn:
+        assert sorted(w.name for w in watches_repo.list_all(conn) if w.owner_id == 2) == ["Secret plan", "Secret plan (2)"]
+
+
+def test_check_now_is_limited_to_my_own_watches_unless_i_run_the_server(people):
+    people.post("/watches", {**WATCH, "name": "Admin watch", "match": "RTX"})
+    switch(people, *BOB)
+    assert "no active watch to check" in people.post("/check", follow=True).text
+    people.post("/watches", {**WATCH, "name": "Bob watch", "match": "RTX"})
+    people.post("/watches", {**WATCH, "name": "Bob paused", "match": "RTX", "enabled": ""})
+    people.run_checks()
+    people.shop["results"] = [offer(900)]
+    people.post("/check")
+    people.run_checks()
+    with people.db() as conn:
+        checked = {w.name: w.last_checked_at for w in watches_repo.list_all(conn)}
+        assert listings_repo.for_watch(conn, 2) and not listings_repo.for_watch(conn, 1)
+        assert not listings_repo.for_watch(conn, 3)  # paused stays paused
+    assert checked["Bob watch"] is not None
+    switch(people, *ADMIN)
+    people.post("/check")
+    people.run_checks()
+    with people.db() as conn:
+        assert listings_repo.for_watch(conn, 1) and not listings_repo.for_watch(conn, 3)
+
+
+def test_share_link_page_does_not_show_how_the_owner_set_the_alert(people):
+    people.shop["results"] = [offer(900)]
+    people.post("/watches", {**WATCH, "visibility": "public", "share_link": "on", "max_price": "777"})
+    people.run_checks()
+    with people.db() as conn:
+        token = watches_repo.get(conn, 1).share_token
+    owner_page = people.get("/watches/1").text
+    assert "Alert at or under" in owner_page and "777" in owner_page
+    switch(people, *BOB)  # an account that can see the watch sees when it alerts: it may follow it
+    assert "Alert at or under" in people.get("/watches/1").text
+    people.post("/logout")
+    public = people.get("/s/" + token).text
+    assert "RTX 5070" in public and "900" in public
+    assert "Alert at" not in public and "777" not in public and "target price" not in public
+
+
+def test_a_deleted_account_cannot_come_back_through_a_reused_id(people):
+    """SQLite hands the id of the last account deleted to the next one created."""
+    add_account(people, "old@example.org", "old long password")
+    switch(people, "old@example.org", "old long password")
+    stale = dict(people.client.cookies)
+    assert people.get("/account").status_code == 200
+    switch(people, *ADMIN)
+    people.post("/users/4/delete")
+    add_account(people, "new@example.org", "new long password", is_admin="on")
+    with people.db() as conn:
+        assert users_repo.get_by_email(conn, "new@example.org").id == 4  # the id was reused
+    people.client.cookies.clear()
+    for name, value in stale.items():
+        people.client.cookies.set(name, value)
+    assert people.get("/account").status_code == 303 and people.get("/users").status_code == 303
+
+
+def test_absurd_ids_are_not_found_rather_than_a_crash(admin):
+    huge = "9" * 30
+    assert admin.get(f"/watches/{huge}").status_code == 404
+    assert admin.get(f"/channels/{huge}/edit").status_code == 404
+    assert admin.post(f"/watches/{huge}/owner", {"owner": huge}).status_code == 404
+    admin.post("/watches", {**WATCH, "visibility": "public"})
+    assert "Pick the account" in admin.post("/watches/1/owner", {"owner": huge}, follow=True).text
+    assert admin.post("/watches/preview", {**WATCH, "watch_id": huge}).status_code == 200
+
+
+def test_testing_with_someone_elses_watch_id_reads_nothing_of_theirs(people):
+    people.post("/watches", {**WATCH, "visibility": "public"})
+    with people.db() as conn:
+        for back in range(1, 6):
+            listings_repo.record_daily_low(conn, 1, f"2026-11-{25 - back:02d}", 1000.0)
+    switch(people, *BOB)
+    people.shop["results"] = [offer(900)]
+    response = people.post("/watches/preview", {**WATCH, "max_price": "", "watch_id": "1"})
+    assert response.status_code == 200 and "No alert threshold yet" in response.text  # no baseline borrowed
+    assert 'action="/watches"' in response.text and 'action="/watches/1"' not in response.text
+
+
+def test_alerts_and_status_only_show_what_the_viewer_may_see(people):
+    people.post("/watches", {**WATCH, "name": "Admin private", "product_urls": "https://hidden-shop.example/p"})
+    switch(people, *BOB)
+    people.post("/watches", {**WATCH, "name": "Bob private"})
+    people.shop["results"] = ScrapeError("HTTP 503")
+    with people.db() as conn:
+        from pricewatch.repos import settings as settings_repo
+
+        settings_repo.save(conn, dataclasses.replace(settings_repo.load(conn), health_alert_after=1))
+    original = people.svc.checker._product_scraper
+    people.svc.checker._product_scraper = lambda ctx, url, selector=None: (_ for _ in ()).throw(ScrapeError("HTTP 403"))
+    people.svc.checker.run()
+    people.svc.checker._product_scraper = original
+
+    status = people.get("/status").text
+    assert "Bob private" in status and "Admin private" not in status and "hidden-shop.example" not in status
+    assert "LDLC" in status
+    alerts = people.get("/alerts").text
+    assert "LDLC has failed 1 checks in a row" in alerts and "hidden-shop.example" not in alerts
+    assert "hidden-shop.example" not in people.get("/").text
+
+    switch(people, *ADMIN)
+    status = people.get("/status").text
+    assert "Admin private" in status and "Bob private" not in status and "hidden-shop.example product pages" in status
+    assert "hidden-shop.example product pages has failed" in people.get("/alerts").text
+
+
+def test_scraper_alerts_about_private_hosts_only_go_to_administrators(people):
+    people.post("/channels?type=ntfy", {**NTFY, "cfg_topic": "admin"})
+    people.post("/watches", {**WATCH, "name": "Page", "site_ldlc": "", "product_urls": "https://hidden-shop.example/p"})
+    switch(people, *BOB)
+    people.post("/channels?type=ntfy", {**NTFY, "cfg_topic": "bob"})
+    people.post("/watches", WATCH)
+    with people.db() as conn:
+        from pricewatch.repos import settings as settings_repo
+
+        settings_repo.save(conn, dataclasses.replace(settings_repo.load(conn), health_alert_after=1))
+    people.shop["results"] = ScrapeError("HTTP 503")
+    people.svc.checker._product_scraper = lambda ctx, url, selector=None: (_ for _ in ()).throw(ScrapeError("HTTP 403"))
+    people.svc.checker.run()
+    by_topic = {config["topic"]: [item.title for item in message.items] for _, config, message in people.sent}
+    assert by_topic["bob"] == ["LDLC has failed 1 checks in a row"]
+    assert sorted(by_topic["admin"]) == ["LDLC has failed 1 checks in a row",
+                                         "hidden-shop.example product pages has failed 1 checks in a row"]
+    assert all(item.site == "" for _, _, message in people.sent for item in message.items)
+
+
+def test_deleting_an_account_deletes_its_watches_and_channels(people):
+    switch(people, *BOB)
+    people.post("/channels?type=ntfy", NTFY)
+    people.post("/watches", {**WATCH, "visibility": "public"})
+    switch(people, *ADMIN)
+    assert "with its watches, their history and its channels" in people.get("/users").text
+    people.post("/users/2/delete")
+    assert people.get("/watches/1").status_code == 404
+    with people.db() as conn:
+        assert watches_repo.list_all(conn) == [] and channels_repo.list_all(conn, people.svc.box) == []
+
+
+def test_watch_form_only_offers_my_own_channels(people):
+    people.post("/channels?type=ntfy", {**NTFY, "name": "Admin phone"})
+    switch(people, *BOB)
+    form = people.get("/watches/new?preset=generic").text
+    assert "Admin phone" not in form and "You have no channel yet" in form
+    people.post("/channels?type=ntfy", {**NTFY, "name": "Bob phone"})
+    assert "Bob phone" in people.get("/watches/new?preset=generic").text
+    people.post("/watches", {**WATCH, "channels_mode": "selected", "channel_1": "on", "channel_2": "on"})
+    with people.db() as conn:
+        assert watches_repo.get(conn, 1).channel_ids == (2,)  # the administrator's channel cannot be picked
+
+
+def test_import_and_export_are_per_account(people):
+    people.post("/watches/import", {"yaml": "version: 2\nwatches:\n  - {name: Mine, sites: [ldlc], visibility: public}\n  - {name: Quiet, sites: [ldlc], visibility: shared}"})
+    with people.db() as conn:
+        assert sorted((w.name, w.owner_id, w.visibility) for w in watches_repo.list_all(conn)) == [
+            ("Mine", 1, "public"), ("Quiet", 1, "private")]
+    exported = people.get("/watches/export.yaml").text
+    assert "visibility: public" in exported and exported.count("visibility") == 1
+    switch(people, *BOB)
+    assert "Imported 1 watch." in people.post("/watches/import", {"yaml": "watches:\n  - {name: Mine, sites: [ldlc]}"}, follow=True).text
+    assert people.get("/watches/export.yaml").text.count("name:") == 1

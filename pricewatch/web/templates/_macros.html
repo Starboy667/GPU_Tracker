@@ -57,6 +57,14 @@
 {%- endif %}
 {% endmacro %}
 
+{# How far a watch is shared, as its owner sees it. #}
+{% macro visibility_chip(w) %}
+{%- if w.visibility == "public" %}<span class="chip chip-info">Public</span>
+{%- elif w.visibility == "shared" %}<span class="chip chip-info">Shared</span>
+{%- else %}<span class="chip chip-muted">Private</span>{% endif %}
+{%- if w.visibility != "private" and w.share_token %} <span class="chip chip-info">Link on</span>{% endif %}
+{% endmacro %}
+
 {% macro alert_kind(kind) %}
 {%- if kind == "deal" %}<span class="chip chip-good">Deal</span>
 {%- elif kind == "restock" %}<span class="chip chip-info">Back in stock</span>

@@ -198,21 +198,34 @@ def test_watch_rows_states_and_order(db):
     def offer(price, in_stock=True):
         return Listing(site="LDLC", title="t", price=price, url="u", in_stock=in_stock, source="ldlc")
 
+    from pricewatch.repos import users
+
     with db.connect() as conn:
-        deal = watches.create(conn, Watch(name="Deal", query="d", match="d", max_price=500), STAMP)
-        tracking = watches.create(conn, Watch(name="Tracking", query="t", match="t"), STAMP)
-        empty = watches.create(conn, Watch(name="Empty", query="e", match="e"), STAMP)
-        watches.create(conn, Watch(name="Waiting", query="w", match="w"), STAMP)
-        paused = watches.create(conn, Watch(name="Paused", query="p", match="p", enabled=False), STAMP)
+        me = users.create(conn, "me@example.org", "h", False, STAMP)
+        them = users.create(conn, "them@example.org", "h", False, STAMP)
+        own = dict(owner_id=me.id)
+        deal = watches.create(conn, Watch(name="Deal", query="d", match="d", max_price=500, **own), STAMP)
+        tracking = watches.create(conn, Watch(name="Tracking", query="t", match="t", **own), STAMP)
+        empty = watches.create(conn, Watch(name="Empty", query="e", match="e", **own), STAMP)
+        watches.create(conn, Watch(name="Waiting", query="w", match="w", **own), STAMP)
+        paused = watches.create(conn, Watch(name="Paused", query="p", match="p", enabled=False, **own), STAMP)
+        watches.create(conn, Watch(name="Their secret", query="s", match="s", owner_id=them.id), STAMP)
+        public = watches.create(conn, Watch(name="Their public", query="s", match="s", owner_id=them.id,
+                                            visibility="public"), STAMP)
+        watches.follow(conn, public.id, me.id)
         for w in (deal, tracking, empty, paused):
             watches.mark_checked(conn, w.id, STAMP, ())
         listings.save(conn, deal.id, offer(450.0), None, None, STAMP)
         listings.save(conn, tracking.id, offer(950.0), None, None, STAMP)
         for day, price in {d: 1000.0 for d in lows(5)}.items():
             listings.record_daily_low(conn, tracking.id, day, price)
-        rows = views.watch_rows(conn, Settings(), TODAY)
-    assert [(r.watch.name, r.state) for r in rows] == [
+        rows = views.watch_rows(conn, Settings(), TODAY, me)
+        theirs = views.watch_rows(conn, Settings(), TODAY, them)
+    assert [(r.watch.name, r.state) for r in rows if r.mine] == [
         ("Deal", "deal"), ("Tracking", "tracking"), ("Empty", "empty"), ("Waiting", "waiting"), ("Paused", "paused")]
+    [shared] = [r for r in rows if not r.mine]  # the private one of someone else is not there at all
+    assert (shared.watch.name, shared.owner, shared.following) == ("Their public", "them@example.org", True)
+    assert sorted(r.watch.name for r in theirs) == ["Their public", "Their secret"] and all(r.mine for r in theirs)
     by_name = {r.watch.name: r for r in rows}
     assert by_name["Tracking"].delta_pct == pytest.approx(-5) and by_name["Tracking"].spark is not None
     assert by_name["Deal"].delta_pct is None and by_name["Deal"].listing_count == 1 and by_name["Deal"].spark is None

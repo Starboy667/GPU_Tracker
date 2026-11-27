@@ -7,7 +7,7 @@
 <div class="page-head">
   <div>
     <h1>Accounts</h1>
-    <p class="page-meta">Everyone signed in sees the same watches and channels. Administrators also manage settings and accounts.</p>
+    <p class="page-meta">Each account has its own watches and channels, and sees what others share with it. Administrators also manage settings and accounts.</p>
   </div>
 </div>
 
@@ -31,7 +31,7 @@
             <button class="btn btn-sm btn-primary">Set password</button>
           </form>
         </details>
-        {{ ui.confirm_delete("/users/" ~ u.id ~ "/delete", "Delete", "Delete the account of " ~ u.email ~ "?", "Yes, delete it") }}
+        {{ ui.confirm_delete("/users/" ~ u.id ~ "/delete", "Delete", "Delete the account of " ~ u.email ~ ", with its watches, their history and its channels?", "Yes, delete it") }}
         {% else %}<a class="btn btn-sm" href="/account">Change my password</a>{% endif %}
       </td>
     </tr>

@@ -115,7 +115,7 @@
   <section class="form-section">
     <div class="form-aside">
       <h2>Where to send alerts</h2>
-      <p>{% if channels %}Channels are managed on the <a href="/channels">Channels</a> page.{% else %}No channel exists yet. Alerts will still be listed in the app; <a href="/channels">add a channel</a> to receive them.{% endif %}</p>
+      <p>{% if channels %}Your channels, managed on the <a href="/channels">Channels</a> page.{% else %}You have no channel yet. Alerts will still be listed in the app; <a href="/channels">add a channel</a> to receive them.{% endif %}</p>
     </div>
     <div class="form-body">
       <fieldset class="options" data-channel-picker>
@@ -137,6 +137,42 @@
         {% endif %}
       </fieldset>
       {{ ui.checkbox("enabled", "Check this watch automatically", values, hint="Untick to pause it without losing its history.") }}
+    </div>
+  </section>
+
+  <section class="form-section" id="visibility">
+    <div class="form-aside">
+      <h2>Who can see it</h2>
+      <p>The people you share with see its prices, chart and offers, and can ask for its alerts on their own channels. Only you can change or delete it.</p>
+    </div>
+    <div class="form-body">
+      {% if errors.get("visibility") %}<p class="error" role="alert">{{ errors["visibility"] }}</p>{% endif %}
+      <fieldset class="options" data-visibility-picker>
+        <legend class="visually-hidden">Visibility</legend>
+        <label class="check">
+          <input type="radio" name="visibility" value="private"{% if values.get("visibility", "private") not in ("shared", "public") %} checked{% endif %}>
+          <span><span class="check-label">Private</span><span class="hint">Only you. Nobody else knows it exists.</span></span>
+        </label>
+        <label class="check">
+          <input type="radio" name="visibility" value="shared"{% if values.get("visibility") == "shared" %} checked{% endif %}>
+          <span><span class="check-label">Shared</span><span class="hint">With the accounts you pick, with a link, or both.</span></span>
+        </label>
+        <div class="options-nested" data-visibility-only="shared">
+          {% for other in others %}
+          {{ ui.checkbox("share_user_" ~ other.id, other.email, values) }}
+          {% else %}
+          <p class="hint">There is no other account on this server yet: use the link below.</p>
+          {% endfor %}
+        </div>
+        <label class="check">
+          <input type="radio" name="visibility" value="public"{% if values.get("visibility") == "public" %} checked{% endif %}>
+          <span><span class="check-label">Public</span><span class="hint">Every account on this server, including future ones.</span></span>
+        </label>
+      </fieldset>
+      <div data-visibility-only="shared public">
+        {{ ui.checkbox("share_link", "Also viewable with a link, without an account", values,
+            hint="Read-only. The link appears on the watch's page once saved, and you can replace it at any time. Not available for a private watch.") }}
+      </div>
     </div>
   </section>
 

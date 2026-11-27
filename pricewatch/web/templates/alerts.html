@@ -5,7 +5,7 @@
 <div class="page-head">
   <div>
     <h1>Alerts</h1>
-    <p class="page-meta">{{ total }} alert{{ "s" if total != 1 }} in the last 12 months, newest first.</p>
+    <p class="page-meta">{{ total }} alert{{ "s" if total != 1 }} in the last 12 months on the watches you can see, newest first.</p>
   </div>
 </div>
 
@@ -40,7 +40,7 @@
         {% endif %}
         <span class="sub deliveries">
           {% set sent = deliveries.get(a.id, []) %}
-          {% if not sent %}Not sent anywhere: no channel was set up for it.
+          {% if not sent %}{% if a.watch_id in own_watch_ids or (a.kind == "health" and user.is_admin) %}Not sent to you: you had no channel for it.{% endif %}
           {% else %}{% for name, status, error in sent %}<span class="delivery delivery-{{ status }}">{{ name }}: {% if status == "sent" %}delivered{% elif status == "pending" %}waiting to retry{% else %}failed{% endif %}{% if error and status != "sent" %} ({{ error }}){% endif %}</span>{% if not loop.last %} · {% endif %}{% endfor %}{% endif %}
         </span>
       </div>
