@@ -2,10 +2,15 @@
 {% import "_macros.html" as ui with context %}
 {% block title %}Import watches{% endblock %}
 {% block page_class %} page-medium{% endblock %}
-{% block content %}
+{% block masthead %}
+<header class="masthead">
 <p class="crumbs"><a href="/">Watches</a></p>
 <h1>Import watches</h1>
 <p class="lead">Paste a YAML export from Price Watch, or the <code>config.yaml</code> of the original GPU script. Watches whose name already exists are skipped, nothing is overwritten.</p>
+</header>
+{% endblock %}
+
+{% block content %}
 {% if problems %}
 <div class="notice notice-error" role="alert">
   <p>Nothing was imported. Fix {{ "this" if problems|length == 1 else "these" }} and try again:</p>

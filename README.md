@@ -206,7 +206,10 @@ register it in `pricewatch/scrapers/__init__.py`, and save a trimmed page under 
 its fields and a `send(config, message)`; the form is generated from the fields.
 
 `PRODUCT.md` says who the product is for and how it should look and sound; read it before
-touching the interface.
+touching the interface. Every signed-in screen is built the same way: the blue bar, a manila
+band holding the breadcrumb and the page's one title (`{% block masthead %}`), then sections
+that each open under a line of ink. Prices that matter are printed with the `tag_price` macro,
+and the price tag itself (`.tag`) is kept for deals and for choosing what to watch.
 
 ## Tests
 

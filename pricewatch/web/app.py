@@ -88,6 +88,7 @@ def build_templates(config: Config) -> Jinja2Templates:
     env.filters["ago"] = lambda value, now: views.ago(value, now)
     env.filters["localtime"] = lambda value: views.local_time(value, config.tz)
     env.filters["localday"] = lambda value: views.local_day(value, config.tz)
+    env.filters["localclock"] = lambda value: views.local_clock(value, config.tz)
     env.filters["calendar_day"] = views.calendar_day
     env.filters["http_url"] = views.http_url
     env.filters["percent"] = views.percent
@@ -216,8 +217,9 @@ def create_app(config: Config | None = None, services: Services | None = None) -
 
     @app.exception_handler(Forbidden)
     async def forbidden(request: Request, exc: Forbidden):
-        return render(request, "error.html", status_code=403, title="Not allowed", message=exc.message,
-                      user=_user_or_none(request))
+        user = _user_or_none(request)
+        return render(request, "error.html", status_code=403, code=403, title="Not allowed", message=exc.message,
+                      user=user, public=user is None)
 
     @app.exception_handler(NotFound)
     async def not_found(request: Request, exc: NotFound):
@@ -248,5 +250,6 @@ def _user_or_none(request: Request):
 
 
 def _not_found_page(request: Request):
-    return render(request, "error.html", status_code=404, title="Page not found",
-                  message="This page does not exist, or the item was deleted.", user=_user_or_none(request))
+    user = _user_or_none(request)
+    return render(request, "error.html", status_code=404, code=404, title="Page not found",
+                  message="This page does not exist, or the item was deleted.", user=user, public=user is None)

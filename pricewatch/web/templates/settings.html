@@ -2,7 +2,8 @@
 {% import "_macros.html" as ui with context %}
 {% block title %}Settings{% endblock %}
 {% block page_class %} page-medium{% endblock %}
-{% block content %}
+{% block masthead %}
+<header class="masthead">
 <div class="page-head">
   <div>
     <h1>Settings</h1>
@@ -10,7 +11,10 @@
   </div>
   <div class="actions"><a class="btn" href="/users">Manage accounts</a></div>
 </div>
+</header>
+{% endblock %}
 
+{% block content %}
 {% if errors %}
 <p class="notice notice-error" role="alert">Nothing was saved yet: {{ errors|length }} field{{ "s need" if errors|length > 1 else " needs" }} a correction below.</p>
 {% endif %}

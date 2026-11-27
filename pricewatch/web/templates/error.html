@@ -1,10 +1,23 @@
 {% extends "base.html" %}
+{% import "_macros.html" as ui %}
 {% block title %}{{ title }}{% endblock %}
-{% block page_class %} page-narrow{% endblock %}
+{% block page_class %} page-medium{% endblock %}
+{% block guestbar %}
+<header class="guestbar">
+  <div class="guestbar-inner">
+    <a class="brand" href="/">{{ ui.brand_mark() }} Price Watch</a>
+    <a class="guestbar-link" href="/login">Sign in</a>
+  </div>
+</header>
+{% endblock %}
 {% block content %}
-<div class="empty">
-  <h1>{{ title }}</h1>
-  <p>{{ message }}</p>
-  {% if not public %}<p><a class="btn" href="/">Back to the watches</a></p>{% endif %}
+<div class="empty empty-page">
+  {{ ui.word_tag(code or "?") }}
+  <div>
+    <h1>{{ title }}</h1>
+    <p>{{ message }}</p>
+    {% if not public %}<p class="actions"><a class="btn btn-primary" href="/">Back to the watches</a></p>
+    {% else %}<p class="actions"><a class="btn" href="/">What is Price Watch?</a></p>{% endif %}
+  </div>
 </div>
 {% endblock %}

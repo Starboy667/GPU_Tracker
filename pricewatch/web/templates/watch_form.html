@@ -2,10 +2,14 @@
 {% import "_macros.html" as ui with context %}
 {% block title %}{% if watch %}Edit {{ watch.name }}{% else %}New watch{% endif %}{% endblock %}
 {% block page_class %} page-medium{% endblock %}
-{% block content %}
+{% block masthead %}
+<header class="masthead">
 <p class="crumbs"><a href="/">Watches</a>{% if watch %} / <a href="/watches/{{ watch.id }}">{{ watch.name }}</a>{% endif %}</p>
 <h1>{% if watch %}Edit watch{% else %}New watch{% if preset %}: {{ preset.label|lower }}{% endif %}{% endif %}</h1>
+</header>
+{% endblock %}
 
+{% block content %}
 {% if errors %}
 <p class="notice notice-error" role="alert">{% if errors.get("") %}{{ errors[""] }}{% else %}Nothing was saved yet: {{ errors|length }} field{{ "s need" if errors|length > 1 else " needs" }} a correction below.{% endif %}</p>
 {% endif %}

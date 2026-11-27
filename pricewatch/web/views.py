@@ -69,6 +69,12 @@ def local_time(value: str | None, tz: ZoneInfo) -> str:
     return f"{here.day} {MONTHS[here.month - 1]} {here.year}, {here:%H:%M}"
 
 
+def local_clock(value: str | None, tz: ZoneInfo) -> str:
+    """The time of day alone, for lists that already say which day it is."""
+    moment = parse_iso(value)
+    return f"{moment.astimezone(tz):%H:%M}" if moment else ""
+
+
 def local_day(value: str | None, tz: ZoneInfo) -> str:
     moment = parse_iso(value)
     if moment is None:

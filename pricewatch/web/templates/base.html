@@ -36,12 +36,17 @@
       </div>
     </div>
   </header>
+  {% else %}{% block guestbar %}{% endblock %}
   {% endif %}
   <main id="main" class="page{% block page_class %}{% endblock %}">
+    {# The coloured band every screen opens on: where it is, its one title, what can be done. #}
+    {% block masthead %}{% endblock %}
     {% for kind, message in flashes %}
     <p class="notice notice-{{ kind }}" role="{{ 'alert' if kind == 'error' else 'status' }}">{{ message }}</p>
     {% endfor %}
     {% block content %}{% endblock %}
+    {# Which version runs is for whoever looks after the server. #}
+    {% if user and user.is_admin %}<p class="foot">Price Watch {{ app_version }}</p>{% endif %}
   </main>
 </body>
 </html>

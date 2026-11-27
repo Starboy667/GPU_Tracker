@@ -7,6 +7,9 @@
 <span class="tp"><span class="visually-hidden">{{ value|money }}</span><span class="tp-euros" aria-hidden="true">{{ euros }}</span><span class="tp-side" aria-hidden="true"><span>,{{ cents }}</span><span>€</span></span></span>
 {%- endmacro %}
 
+{# A tag with a word on it instead of a price: for screens that have nothing to show yet. #}
+{% macro word_tag(word) %}<svg class="word-tag" viewBox="0 0 120 190" aria-hidden="true" focusable="false"><path class="word-tag-string" d="M60 0C60 22 57 36 60 50"/><path class="word-tag-paper" fill-rule="evenodd" d="M27 40h66l15 15v119a6 6 0 0 1-6 6H18a6 6 0 0 1-6-6V55zm33 7a6 6 0 1 0 0 12 6 6 0 0 0 0-12z"/><text class="word-tag-word" x="60" y="132" text-anchor="middle">{{ word }}</text></svg>{% endmacro %}
+
 {% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% endmacro %}
 
 {# A plain text-like input with label, hint and error. #}

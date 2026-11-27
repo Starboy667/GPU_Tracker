@@ -49,8 +49,8 @@
 </div>
 {% endmacro %}
 
-{% block content %}
-{% set deal_rows = (rows + other_rows)|selectattr("state", "equalto", "deal")|list %}
+{% block masthead %}
+<header class="masthead">
 <div class="page-head">
   <div>
     <h1>Watches</h1>
@@ -65,7 +65,11 @@
     <a class="btn btn-primary" href="/watches/new">Add a watch</a>
   </div>
 </div>
+</header>
+{% endblock %}
 
+{% block content %}
+{% set deal_rows = (rows + other_rows)|selectattr("state", "equalto", "deal")|list %}
 {% if failing %}
 <p class="notice notice-warn">
   {% for label, h in failing %}{{ label }}{% if not loop.last %}, {% endif %}{% endfor %}
@@ -106,14 +110,17 @@
 
 {% if not rows and not other_rows %}
 <div class="empty">
-  <h2>Nothing is being watched yet</h2>
-  <p>A watch is one product you want to buy at the right price. Price Watch looks it up in the shops every
-    {{ settings.check_interval_minutes }} minutes, learns its usual price over a few days, and alerts you when it drops.
-    A new watch is private: only you see it until you share it.</p>
-  <p class="actions actions-center">
-    <a class="btn btn-primary" href="/watches/new">Add your first watch</a>
-    <a class="btn" href="/watches/import">Import a list</a>
-  </p>
+  {{ ui.word_tag("?") }}
+  <div>
+    <h2>Nothing is being watched yet</h2>
+    <p>A watch is one product you want to buy at the right price. Price Watch looks it up in the shops every
+      {{ settings.check_interval_minutes }} minutes, learns its usual price over a few days, and alerts you when it drops.
+      A new watch is private: only you see it until you share it.</p>
+    <p class="actions actions-center">
+      <a class="btn btn-primary" href="/watches/new">Add your first watch</a>
+      <a class="btn" href="/watches/import">Import a list</a>
+    </p>
+  </div>
 </div>
 {% else %}
 <div class="split">

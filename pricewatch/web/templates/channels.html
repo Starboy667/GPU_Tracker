@@ -1,14 +1,18 @@
 {% extends "base.html" %}
 {% import "_macros.html" as ui with context %}
 {% block title %}Channels{% endblock %}
-{% block content %}
+{% block masthead %}
+<header class="masthead">
 <div class="page-head">
   <div>
     <h1>Channels</h1>
     <p class="page-meta">Where your alerts are sent. They are yours alone: other accounts neither see nor use them. A watch of yours uses all of them unless you pick some in its settings.</p>
   </div>
 </div>
+</header>
+{% endblock %}
 
+{% block content %}
 {% if channels %}
 <div class="table-wrap">
 <table class="table table-stack">
@@ -43,8 +47,11 @@
 </div>
 {% else %}
 <div class="empty">
-  <h2>No channel yet</h2>
-  <p>Deals are listed in the app either way. Add a channel to be told when one shows up: pick a service below, fill in its details, then send yourself a test.</p>
+  {{ ui.word_tag("…") }}
+  <div>
+    <h2>No channel yet</h2>
+    <p>Deals are listed in the app either way. Add a channel to be told when one shows up: pick a service below, fill in its details, then send yourself a test.</p>
+  </div>
 </div>
 {% endif %}
 

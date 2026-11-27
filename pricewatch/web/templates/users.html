@@ -2,7 +2,8 @@
 {% import "_macros.html" as ui with context %}
 {% block title %}Accounts{% endblock %}
 {% block page_class %} page-medium{% endblock %}
-{% block content %}
+{% block masthead %}
+<header class="masthead">
 <p class="crumbs"><a href="/settings">Settings</a></p>
 <div class="page-head">
   <div>
@@ -10,7 +11,10 @@
     <p class="page-meta">Each account has its own watches and channels, and sees what others share with it. Administrators also manage settings and accounts.</p>
   </div>
 </div>
+</header>
+{% endblock %}
 
+{% block content %}
 <div class="table-wrap">
 <table class="table table-stack">
   <thead><tr><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Created</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>

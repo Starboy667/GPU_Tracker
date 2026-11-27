@@ -252,3 +252,84 @@ def test_the_dashboard_puts_current_deals_on_tags(admin):
 
 def test_pages_without_a_deal_show_no_tag(admin):
     assert 'id="deals"' not in admin.get("/").text
+
+
+# ------------------------------------------------------------------ one art direction on every screen
+
+SIGNED_IN_PAGES = ("/", "/alerts", "/channels", "/status", "/settings", "/users", "/account", "/watches/new",
+                   "/watches/new?preset=generic", "/watches/import", "/channels/new?type=ntfy", "/watches/1",
+                   "/watches/1/edit")
+
+
+def test_every_screen_opens_on_a_masthead_with_its_one_title(admin):
+    from tests.test_web import WATCH, offer
+
+    admin.shop["results"] = [offer(price=900.0)]
+    assert admin.post("/watches", WATCH).status_code == 303
+    admin.run_checks()
+    for path in SIGNED_IN_PAGES:
+        page = admin.get(path)
+        assert page.status_code == 200, path
+        assert page.text.count("<h1") == 1, path
+        masthead = page.text[page.text.index('<header class="masthead"'):page.text.index("</header>", page.text.index('<header class="masthead"'))]
+        assert "<h1" in masthead, path  # the title sits on the coloured band, not under it
+        assert page.text.index('id="main"') < page.text.index('<header class="masthead"'), path  # inside the main landmark
+
+
+def test_signed_in_screens_say_which_version_runs_and_public_ones_do_not(admin):
+    from pricewatch import __version__
+
+    assert f"Price Watch {__version__}" in admin.get("/status").text
+    admin.post("/users", {"email": "member@example.org", "password": "a member's password"})
+    admin.post("/logout")
+    assert admin.login("member@example.org", "a member's password").status_code == 303
+    assert __version__ not in admin.get("/status").text  # the version is the administrator's business
+    admin.post("/logout")
+    for path in ("/", "/login", "/s/not-a-real-link"):
+        assert __version__ not in admin.get(path).text, path
+
+
+def test_choosing_what_to_watch_is_picking_a_tag(admin):
+    from pricewatch.presets import PRESETS
+
+    page = admin.get("/watches/new").text
+    for preset in PRESETS:
+        assert f'href="/watches/new?preset={preset.key}"' in page and preset.label in page and preset.example in page
+    assert page.count('class="tag tag-choice"') == len(PRESETS)
+
+
+def test_the_alert_history_prints_prices_like_the_tags(admin):
+    from tests.test_web import NTFY, WATCH, offer
+
+    admin.post("/channels?type=ntfy", NTFY)
+    admin.shop["results"] = [offer(price=900.0)]
+    admin.post("/watches", WATCH)
+    admin.run_checks()
+    page = admin.get("/alerts").text
+    assert 'class="tp"' in page and "900,00" in page and "Phone: delivered" in page and "Target" in page
+
+
+def test_a_shared_link_page_carries_the_brand_and_a_way_in(admin):
+    from tests.test_web import WATCH
+
+    assert admin.post("/watches", {**WATCH, "visibility": "shared", "share_link": "on"}).status_code == 303
+    with admin.db() as conn:
+        from pricewatch.repos import watches as watches_repo
+
+        token = watches_repo.get(conn, 1).share_token
+    admin.post("/logout")
+    admin.client.cookies.clear()
+    page = admin.get(f"/s/{token}")
+    assert page.status_code == 200 and "set-cookie" not in page.headers
+    assert 'class="guestbar"' in page.text and 'href="/"' in page.text and 'href="/login"' in page.text
+    assert "read-only" in page.text and '<header class="masthead"' in page.text
+
+
+def test_error_pages_show_their_number_on_a_tag(admin):
+    missing = admin.get("/watches/999")
+    assert missing.status_code == 404 and ">404<" in missing.text and "Back to the watches" in missing.text
+    admin.post("/logout")
+    admin.client.cookies.clear()
+    dead_link = admin.get("/s/not-a-real-link")
+    assert dead_link.status_code == 404 and ">404<" in dead_link.text and "This link does not work" in dead_link.text
+    assert "Back to the watches" not in dead_link.text and 'href="/"' in dead_link.text

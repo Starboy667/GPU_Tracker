@@ -2,14 +2,18 @@
 {% import "_macros.html" as ui with context %}
 {% block title %}My account{% endblock %}
 {% block page_class %} page-medium{% endblock %}
-{% block content %}
+{% block masthead %}
+<header class="masthead">
 <div class="page-head">
   <div>
     <h1>My account</h1>
     <p class="page-meta">{{ user.email }} · {{ "Administrator" if user.is_admin else "Member" }}</p>
   </div>
 </div>
+</header>
+{% endblock %}
 
+{% block content %}
 <section class="section">
   <div class="section-head"><h2>Change password</h2></div>
   <form method="post" action="/account/password" class="stack form-narrow" novalidate>

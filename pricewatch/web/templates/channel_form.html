@@ -2,12 +2,16 @@
 {% import "_macros.html" as ui with context %}
 {% block title %}{% if channel %}Edit {{ channel.name }}{% else %}New {{ channel_type.label }} channel{% endif %}{% endblock %}
 {% block page_class %} page-medium{% endblock %}
-{% block content %}
+{% block masthead %}
+<header class="masthead">
 <p class="crumbs"><a href="/channels">Channels</a></p>
 <h1>{% if channel %}Edit channel{% else %}New channel: {{ channel_type.label }}{% endif %}</h1>
 <p class="lead">{{ channel_type.setup_help }}
   {% if channel_type.docs_url %}<a href="{{ channel_type.docs_url|http_url }}" target="_blank" rel="noopener noreferrer">Documentation</a>{% endif %}</p>
+</header>
+{% endblock %}
 
+{% block content %}
 {% if channel and not channel.readable %}
 <p class="notice notice-warn">The stored settings of this channel cannot be read any more, which happens when the server's secret key changes. Enter them again.</p>
 {% endif %}

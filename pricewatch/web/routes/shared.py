@@ -23,7 +23,7 @@ def shared_watch(request: Request, token: str):
         if watch is None or not access.link_is_active(watch):
             # One answer for "never existed", "was replaced" and "was made private".
             return render(
-                request, "error.html", status_code=404, stateless=True, title="This link does not work",
+                request, "error.html", status_code=404, code=404, stateless=True, title="This link does not work",
                 message="It may have been replaced or turned off by the person who shared it.", public=True,
             )
         page = views.watch_page(conn, watch, settings_repo.load(conn), today, show_alert_rule=False)

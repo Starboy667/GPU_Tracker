@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% import "_macros.html" as ui with context %}
 {% block title %}{{ watch.name }}{% endblock %}
-{% block content %}
+{% block masthead %}
+<header class="masthead">
 <p class="crumbs"><a href="/">Watches</a></p>
 <div class="page-head">
   <div>
@@ -33,7 +34,10 @@
     {% endif %}
   </div>
 </div>
+</header>
+{% endblock %}
 
+{% block content %}
 {% if not mine %}
 <p class="notice notice-info">
   {% if watch.visibility == "public" %}A public watch{% else %}Shared with you{% endif %}{% if owner_email %} by {{ owner_email }}{% endif %}: you can look, its owner decides what it searches.

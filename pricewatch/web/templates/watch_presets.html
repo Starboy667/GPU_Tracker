@@ -1,18 +1,21 @@
 {% extends "base.html" %}
 {% block title %}Add a watch{% endblock %}
-{% block page_class %} page-medium{% endblock %}
-{% block content %}
+{% block masthead %}
+<header class="masthead">
 <p class="crumbs"><a href="/">Watches</a></p>
 <h1>What do you want to watch?</h1>
 <p class="lead">This only fills in sensible filters to start from. You can change everything on the next screen.</p>
-<ul class="choices">
+</header>
+{% endblock %}
+
+{% block content %}
+<ul class="tag-shelf">
   {% for p in presets %}
-  <li>
-    <a class="choice" href="/watches/new?preset={{ p.key }}">
-      <span class="choice-title">{{ p.label }}</span>
-      <span class="choice-text">{{ p.description }}</span>
-      <span class="choice-example">For example: {{ p.example }}</span>
-    </a>
+  <li class="tag tag-choice">
+    <p class="tag-name"><a class="tag-link" href="/watches/new?preset={{ p.key }}">{{ p.label }}</a></p>
+    <div class="tag-rule" aria-hidden="true"></div>
+    <p class="tag-text">{{ p.description }}</p>
+    <p class="tag-foot"><span>For example: {{ p.example }}</span></p>
   </li>
   {% endfor %}
 </ul>

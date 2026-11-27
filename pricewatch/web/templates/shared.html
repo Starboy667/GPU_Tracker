@@ -1,15 +1,27 @@
 {% extends "base.html" %}
 {% import "_macros.html" as ui with context %}
 {% block title %}{{ watch.name }}{% endblock %}
-{% block content %}
+{% block guestbar %}
+<header class="guestbar">
+  <div class="guestbar-inner">
+    <a class="brand" href="/">{{ ui.brand_mark() }} Price Watch</a>
+    <a class="guestbar-link" href="/login">Sign in</a>
+  </div>
+</header>
+{% endblock %}
+{% block masthead %}
+<header class="masthead">
 <div class="page-head">
   <div>
-    <p class="crumbs">Price Watch · shared with you, read-only</p>
+    <p class="crumbs">Shared with you, read-only</p>
     <h1>{{ watch.name }} {% if not watch.enabled %}<span class="chip chip-muted">Paused</span>{% endif %}</h1>
     <p class="page-meta">{% if watch.last_checked_at %}Prices checked {{ watch.last_checked_at|ago(now) }}{% else %}Not checked yet{% endif %}</p>
   </div>
 </div>
+</header>
+{% endblock %}
 
+{% block content %}
 {% include "_watch_summary.html" %}
 {% include "_watch_offers.html" %}
 {% endblock %}

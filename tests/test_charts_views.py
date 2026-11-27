@@ -123,6 +123,7 @@ def test_until():
 def test_local_time_uses_the_configured_zone():
     paris = ZoneInfo("Europe/Paris")
     assert views.local_time(STAMP, paris) == "25 Nov 2026, 10:00"
+    assert views.local_clock(STAMP, paris) == "10:00" and views.local_clock(None, paris) == ""
     assert views.local_day("2026-12-31T23:30:00Z", paris) == "1 Jan 2027"
     assert views.local_time(None, paris) == "" and views.local_day("", paris) == ""
 

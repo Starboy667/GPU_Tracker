@@ -41,8 +41,8 @@ html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
 .has-scene .l-scene { opacity: 1; }
 
 .l-fold {
-  --fold-soft: color-mix(in oklch, var(--fold-ink) 80%, var(--fold-bg));
-  --fold-rule: color-mix(in oklch, var(--fold-ink) 24%, var(--fold-bg));
+  --fold-soft: color-mix(in oklab, var(--fold-ink) 80%, var(--fold-bg));
+  --fold-rule: color-mix(in oklab, var(--fold-ink) 24%, var(--fold-bg));
   position: relative;
   min-height: 100vh;
   min-height: 100svh;
@@ -148,7 +148,7 @@ html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
   font-weight: 720; font-stretch: 92%; font-size: 1.0625rem; text-decoration: none; white-space: nowrap;
   transition: transform 220ms var(--ease-out), background-color 160ms ease-out, color 160ms ease-out, border-color 160ms ease-out;
 }
-.l-btn:hover { background: color-mix(in oklch, var(--fold-ink) 14%, transparent); transform: translateY(-2px); }
+.l-btn:hover { background: color-mix(in oklab, var(--fold-ink) 14%, transparent); transform: translateY(-2px); }
 .l-btn:active { transform: translateY(0); transition-duration: 60ms; }
 .l-btn--solid { background: var(--fold-ink); border-color: var(--fold-ink); color: var(--fold-bg); }
 .l-btn--solid:hover { background: var(--fold-accent); border-color: var(--fold-accent); color: var(--ink); }
@@ -218,7 +218,7 @@ html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
   position: relative; z-index: 3;
   padding: 1rem clamp(1.25rem, 5.5vw, 6.5rem);
   background: var(--cobalt-deep);
-  color: color-mix(in oklch, var(--paper) 82%, var(--cobalt-deep));
+  color: color-mix(in oklab, var(--paper) 82%, var(--cobalt-deep));
   font-size: 0.875rem; text-align: center;
 }
 
