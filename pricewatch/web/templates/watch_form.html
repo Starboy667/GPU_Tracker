@@ -210,7 +210,7 @@
     <tbody>
       {% for l in scan.accepted %}
       <tr>
-        <td class="num" data-label="Price"><span class="price">{{ l.price|money }}</span>{% if pricing.threshold is not none and l.price <= pricing.threshold %} <span class="chip chip-good">Deal</span>{% endif %}</td>
+        <td class="num" data-label="Price"><span class="price">{{ l.price|money }}</span>{% if pricing.threshold is not none and l.price <= pricing.threshold %} <span class="chip chip-deal">Deal</span>{% endif %}</td>
         <td data-label="Shop">{{ l.site }}</td>
         <td data-label="Stock">{{ ui.stock(l.in_stock) }}</td>
         <td data-label="Title">{{ ui.ext_link(l.url, l.title) }}</td>

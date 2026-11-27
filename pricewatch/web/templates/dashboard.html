@@ -13,7 +13,6 @@
       <th scope="col" class="num">Usual price</th>
       <th scope="col" class="num">Alert at</th>
       <th scope="col">Last 30 days</th>
-      <th scope="col">Checked</th>
     </tr>
   </thead>
   <tbody>
@@ -23,7 +22,7 @@
       <th scope="row" class="cell-name">
         <a class="row-link" href="/watches/{{ w.id }}">{{ w.name }}</a>
         {{ ui.state_chip(row.state) }}
-        {% if own %}{{ ui.visibility_chip(w) }}{% elif row.following %}<span class="chip chip-info">Following</span>{% endif %}
+        {% if own %}{{ ui.visibility_chip(w, false) }}{% elif row.following %}<span class="chip chip-info">Following</span>{% endif %}
         {% if w.last_errors and row.state != "paused" %}<span class="chip chip-warn" title="{% for site, error in w.last_errors %}{{ site }}: {{ error }}{% if not loop.last %} · {% endif %}{% endfor %}">{{ w.last_errors|length }} shop{{ "s" if w.last_errors|length > 1 }} failed</span>{% endif %}
         {% if not own %}<span class="sub">{% if row.owner %}From {{ row.owner }}{% else %}No owner{% endif %}{% if w.visibility == "public" %}, public{% endif %}</span>{% endif %}
       </th>
@@ -43,7 +42,6 @@
         {% if row.pricing.threshold is not none %}{{ row.pricing.threshold|money }}{% else %}<span class="muted">Not yet</span>{% endif %}
       </td>
       <td data-label="Last 30 days">{{ ui.sparkline(row.spark) }}</td>
-      <td data-label="Checked"><span class="muted">{{ w.last_checked_at|ago(now) }}</span></td>
     </tr>
     {% endfor %}
   </tbody>
@@ -52,6 +50,7 @@
 {% endmacro %}
 
 {% block content %}
+{% set deal_rows = (rows + other_rows)|selectattr("state", "equalto", "deal")|list %}
 <div class="page-head">
   <div>
     <h1>Watches</h1>
@@ -77,9 +76,37 @@
 <p class="notice notice-info">Deals show up here, but nothing is sent to you yet. <a href="/channels">Add a notification channel</a></p>
 {% endif %}
 
-{% if not rows %}
+{# What people come for: the products that are at their alert price right now, each on its tag. #}
+{% if deal_rows %}
+<section class="deals" id="deals" aria-labelledby="h-deals">
+  <div class="section-head">
+    <h2 id="h-deals">{{ deal_rows|length }} deal{{ "s" if deal_rows|length > 1 }} right now</h2>
+    <span class="muted">At or under the alert price as of the last check</span>
+  </div>
+  <ul class="deals-list">
+    {% for row in deal_rows %}
+    <li class="tag">
+      <p class="tag-name"><a class="tag-link" href="/watches/{{ row.watch.id }}">{{ row.watch.name }}</a></p>
+      <p class="tag-shop">{{ row.best.site }}{% if row.best.in_stock is false %} · out of stock{% elif row.best.in_stock is none %} · stock unknown{% endif %}{% if not row.mine and row.owner %} · from {{ row.owner }}{% endif %}</p>
+      <div class="tag-rule" aria-hidden="true"></div>
+      {{ ui.tag_price(row.best.price) }}
+      <p class="tag-foot">
+        <span>
+          {%- if row.pricing.baseline and row.delta_pct is not none and row.delta_pct <= -0.5 %}{{ row.delta_pct|percent }} against the usual {{ row.pricing.baseline.price|money }}
+          {%- elif row.watch.max_price is not none %}Under the {{ row.watch.max_price|money }} target
+          {%- else %}At the alert price{% endif -%}
+        </span>
+        {{ ui.ext_link(row.best.url, "See the offer") }}
+      </p>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{% if not rows and not other_rows %}
 <div class="empty">
-  <h2>{% if other_rows %}You have no watch of your own yet{% else %}Nothing is being watched yet{% endif %}</h2>
+  <h2>Nothing is being watched yet</h2>
   <p>A watch is one product you want to buy at the right price. Price Watch looks it up in the shops every
     {{ settings.check_interval_minutes }} minutes, learns its usual price over a few days, and alerts you when it drops.
     A new watch is private: only you see it until you share it.</p>
@@ -89,46 +116,56 @@
   </p>
 </div>
 {% else %}
-{{ watch_table(rows, true) }}
-<p class="table-foot muted">
-  {{ rows|length }} watch{{ "es" if rows|length != 1 }} of yours ·
-  <a href="/watches/import">Import</a> · <a href="/watches/export.yaml">Export as YAML</a>
-</p>
-{% endif %}
+<div class="split">
+  <div class="split-main">
+    <section class="section">
+      <div class="section-head">
+        <h2>Your watches</h2>
+        {% if rows %}<span class="muted">{{ rows|length }} watch{{ "es" if rows|length != 1 }} of yours · <a href="/watches/import">Import</a> · <a href="/watches/export.yaml">Export as YAML</a></span>{% endif %}
+      </div>
+      {% if rows %}
+      {{ watch_table(rows, true) }}
+      {% else %}
+      <p class="muted">You have no watch of your own yet. <a href="/watches/new">Add one</a>, or <a href="/watches/import">import a list</a>. A new watch is private: only you see it until you share it.</p>
+      {% endif %}
+    </section>
 
-{% if other_rows %}
-<section class="section">
-  <div class="section-head">
-    <h2>From other people</h2>
-    <span class="muted">Shared with you, or public. Open one to receive its alerts too.</span>
+    {% if other_rows %}
+    <section class="section">
+      <div class="section-head">
+        <h2>From other people</h2>
+        <span class="muted">Shared with you, or public. Open one to receive its alerts too.</span>
+      </div>
+      {{ watch_table(other_rows, false) }}
+    </section>
+    {% endif %}
   </div>
-  {{ watch_table(other_rows, false) }}
-</section>
-{% endif %}
 
-{% if rows or other_rows %}
-<section class="section">
-  <div class="section-head">
-    <h2>Latest alerts</h2>
-    {% if recent_alerts %}<a href="/alerts">All alerts</a>{% endif %}
-  </div>
-  {% if recent_alerts %}
-  <ul class="feed">
-    {% for a in recent_alerts %}
-    <li>
-      {{ ui.alert_kind(a.kind) }}
-      <span class="feed-main">
-        {% if a.kind == "health" %}{{ a.title }}
-        {% else %}<strong>{{ a.watch_name }}</strong> {% if a.price is not none %}at <span class="price">{{ a.price|money }}</span>{% endif %}
-          <span class="muted">{{ ui.ext_link(a.url, a.site) }}</span>{% endif %}
-      </span>
-      <span class="muted feed-time">{{ a.created_at|ago(now) }}</span>
-    </li>
-    {% endfor %}
-  </ul>
-  {% else %}
-  <p class="muted">No alert so far. The first ones can come as soon as a product has {{ settings.baseline_min_days }} days of price history, or right away if you set a target price.</p>
-  {% endif %}
-</section>
+  <aside class="split-aside" aria-label="Recent activity">
+    <section class="section">
+      <div class="section-head">
+        <h2>Latest alerts</h2>
+        {% if recent_alerts %}<a href="/alerts">All alerts</a>{% endif %}
+      </div>
+      {% if recent_alerts %}
+      <ul class="feed feed-tight">
+        {% for a in recent_alerts %}
+        <li>
+          {{ ui.alert_kind(a.kind) }}
+          <span class="feed-main">
+            {% if a.kind == "health" %}{{ a.title }}
+            {% else %}<strong>{{ a.watch_name }}</strong> {% if a.price is not none %}at <span class="price">{{ a.price|money }}</span>{% endif %}
+              <span class="muted">{{ ui.ext_link(a.url, a.site) }}</span>{% endif %}
+          </span>
+          <span class="muted feed-time">{{ a.created_at|ago(now) }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="muted">No alert so far. The first ones can come as soon as a product has {{ settings.baseline_min_days }} days of price history, or right away if you set a target price.</p>
+      {% endif %}
+    </section>
+  </aside>
+</div>
 {% endif %}
 {% endblock %}

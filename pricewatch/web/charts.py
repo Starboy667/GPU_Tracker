@@ -22,6 +22,12 @@ def fmt_money(value: float, *, decimals: bool = True) -> str:
     return text.replace(",", THIN_NBSP).replace(".", ",") + NBSP + "€"
 
 
+def money_parts(value: float) -> tuple[str, str]:
+    """1079.95 -> ('1 079', '95'): euros and cents apart, for labels that print them at two sizes."""
+    euros, cents = f"{value:,.2f}".split(".")
+    return euros.replace(",", THIN_NBSP), cents
+
+
 def fmt_day(day: date) -> str:
     return f"{day.day} {MONTHS[day.month - 1]}"
 

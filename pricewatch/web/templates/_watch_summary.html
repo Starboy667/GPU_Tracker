@@ -1,0 +1,65 @@
+{# One watch at a glance: the price that matters, the numbers that give it meaning, the curve.
+   Included by the watch page and by the shared-link page. `mine` (default false) adds the hints
+   that only make sense to the owner. #}
+{% set best_is_deal = best and best.id in deal_ids %}
+<div class="watch-top">
+  <div class="watch-best{% if best_is_deal %} is-deal{% endif %}">
+    <span class="watch-best-label">Best price now</span>
+    {% if best %}
+    {{ ui.tag_price(best.price) }}
+    <p class="watch-best-meta">
+      {% if best_is_deal %}<span class="chip chip-deal">Deal</span>{% endif %}
+      <span>at {{ ui.ext_link(best.url, best.site) }}</span>
+      {% if pricing.baseline and best.price < pricing.baseline.price * 0.995 %}<span class="delta delta-down">{{ ((best.price / pricing.baseline.price - 1) * 100)|percent }} against usual</span>{% endif %}
+    </p>
+    {% else %}
+    <p class="muted">No offer available</p>
+    {% endif %}
+  </div>
+  <dl class="facts">
+    <div>
+      <dt>Usual price</dt>
+      <dd>{% if pricing.baseline %}<span class="fact-value">{{ pricing.baseline.price|money }}</span> <span class="sub">median over {{ pricing.baseline.days }} day{{ "s" if pricing.baseline.days > 1 }}</span>
+        {% else %}<span class="muted">Still learning: {{ pricing.days_until_baseline }} more day{{ "s" if pricing.days_until_baseline > 1 }} of prices needed</span>{% endif %}</dd>
+    </div>
+    {% if show_alert_rule %}
+    <div>
+      <dt>Alert at or under</dt>
+      <dd>{% if pricing.threshold is not none %}<span class="fact-value">{{ pricing.threshold|money }}</span>
+        <span class="sub">{% if watch.max_price is not none and pricing.threshold == watch.max_price %}target price{% else %}{{ pricing.drop_pct|round(1)|string|replace(".0", "") }} % under usual{% endif %}{% if pricing.in_stock_only %}, in stock{% endif %}</span>
+        {% elif mine %}<span class="muted">Not yet. <a href="/watches/{{ watch.id }}/edit">Set a target price</a> to be alerted right away</span>
+        {% else %}<span class="muted">Not yet: the usual price is still being learned</span>{% endif %}</dd>
+    </div>
+    {% endif %}
+    <div>
+      <dt>Lowest in {{ chart_days }} days</dt>
+      <dd>{% if lowest %}<span class="fact-value">{{ lowest[1]|money }}</span> <span class="sub">on {{ lowest[0]|calendar_day }}</span>{% else %}<span class="muted">No history yet</span>{% endif %}</dd>
+    </div>
+  </dl>
+</div>
+
+<section class="section">
+  <div class="section-head">
+    <h2>Lowest available price per day</h2>
+    <span class="muted">Last {{ chart_days }} days, shops only (Dealabs posts are left out)</span>
+  </div>
+  {% if charts[0][1] %}
+  <div class="chart" data-chart-root>
+    {% for name, chart in charts %}{{ ui.linechart(chart, name) }}{% endfor %}
+    <div class="chart-tip" data-tip hidden><strong data-tip-value></strong><span data-tip-label></span></div>
+  </div>
+  <details class="more">
+    <summary>Show these prices as a table</summary>
+    <div class="table-wrap">
+    <table class="table table-compact">
+      <thead><tr><th scope="col">Day</th><th scope="col" class="num">Lowest available price</th></tr></thead>
+      <tbody>
+        {% for day, price in lows %}<tr><td>{{ day|calendar_day }}</td><td class="num">{{ price|money }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </details>
+  {% else %}
+  <p class="muted">The chart appears after the first successful check.</p>
+  {% endif %}
+</section>

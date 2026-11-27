@@ -26,6 +26,9 @@ def lows(count, start=1000.0, step=-5.0, skip=()):
 def test_money_and_day_formats():
     assert charts.fmt_money(1079.95) == "1" + chr(0x202F) + "079,95" + chr(0xA0) + "€"
     assert charts.fmt_money(1000, decimals=False) == "1" + chr(0x202F) + "000" + chr(0xA0) + "€"
+    # Split the way a shop label prints it: the euros large, the cents beside them.
+    assert charts.money_parts(1079.95) == ("1" + chr(0x202F) + "079", "95")
+    assert charts.money_parts(899) == ("899", "00") and charts.money_parts(59.999) == ("60", "00")
     assert charts.fmt_day(date(2026, 3, 7)) == "7 Mar"
 
 

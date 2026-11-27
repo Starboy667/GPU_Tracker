@@ -5,6 +5,7 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 MIN_SECRET_KEY_LENGTH = 32
@@ -28,6 +29,9 @@ class Config:
     # JSON endpoint answering "from which address do you see me?" (e.g. https://am.i.mullvad.net/json).
     # When set, the Status page shows how the app reaches the internet, VPN included.
     outbound_check_url: str = ""
+    # Where the public home page sends people who want an account: an https page or a mailto link.
+    # Empty: the page only says to ask whoever runs the server.
+    access_request_url: str = ""
     host: str = "0.0.0.0"
     port: int = 8000
     session_days: int = 14
@@ -46,6 +50,26 @@ def _flag(env: Mapping[str, str], name: str, default: bool) -> bool:
     if raw is None or raw.strip() == "":
         return default
     return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
+def _access_request_url(raw: str) -> str:
+    """A link the home page can show as is: https or mailto, and nothing that could break out of
+    an attribute or hide where it leads."""
+    value = raw.strip()
+    if not value:
+        return ""
+    problem = ConfigError("ACCESS_REQUEST_URL must be an https:// address or a mailto: link")
+    if any(ch.isspace() or ch in "\"'<>`\\" or ord(ch) < 32 for ch in value):
+        raise problem
+    try:
+        parts = urlsplit(value)
+    except ValueError as exc:
+        raise problem from exc
+    if parts.scheme == "https" and parts.hostname:
+        return value
+    if parts.scheme == "mailto" and "@" in parts.path:
+        return value
+    raise problem
 
 
 def load_config(env: Mapping[str, str] | None = None) -> Config:
@@ -81,6 +105,7 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
         scheduler_enabled=_flag(env, "SCHEDULER_ENABLED", True),
         allow_private_notify_urls=_flag(env, "ALLOW_PRIVATE_NOTIFY_URLS", False),
         outbound_check_url=outbound_check_url,
+        access_request_url=_access_request_url(env.get("ACCESS_REQUEST_URL", "")),
         host=env.get("HOST", "").strip() or "0.0.0.0",
         port=port,
     )

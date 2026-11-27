@@ -1,4 +1,4 @@
-"""Home page: every watch at a glance, plus the status of the checks."""
+"""Home page: every watch at a glance (or the public page when signed out), plus the status of the checks."""
 from __future__ import annotations
 
 from fastapi import APIRouter, Request
@@ -12,7 +12,8 @@ from pricewatch.repos import settings as settings_repo
 from pricewatch.repos import watches as watches_repo
 from pricewatch.scan import PRODUCT_HEALTH_PREFIX
 from pricewatch.web import views
-from pricewatch.web.deps import current_user, flash, read_form, redirect, render, services
+from pricewatch.web.deps import LoginRequired, current_user, flash, read_form, redirect, render, services
+from pricewatch.web.routes.landing import landing_page
 
 router = APIRouter()
 
@@ -48,7 +49,10 @@ def visible_problems(user: User, run: Run, visible_ids: set[int]) -> list[tuple[
 
 @router.get("/")
 def dashboard(request: Request):
-    user = current_user(request)
+    try:
+        user = current_user(request)
+    except LoginRequired:
+        return landing_page(request)  # the only address that answers without an account
     svc = services(request)
     today = svc.clock().astimezone(svc.config.tz).date()
     with svc.db.connect() as conn:

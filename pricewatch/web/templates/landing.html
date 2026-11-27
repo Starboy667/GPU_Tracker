@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="description" content="Price Watch follows products in French shops, learns what they usually cost and alerts you when the price really drops.">
+  <title>Price Watch · Every price drops. Be there when it does.</title>
+  <link rel="preload" href="{{ static('fonts/archivo-latin.woff2') }}" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="{{ static('tokens.css') }}">
+  <link rel="stylesheet" href="{{ static('landing.css') }}">
+  <link rel="icon" href="{{ static('favicon.svg') }}" type="image/svg+xml">
+  <script type="module" src="{{ static('landing/main.js') }}"></script>
+</head>
+{% set access_href = access_request_url or "#access" %}
+{% set drop = "%g"|format(settings.deal_drop_pct) %}
+<body class="landing">
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  {# The 3D scene floats above the coloured sheets and under the text. Decorative: everything it
+     shows is also said in words. #}
+  <canvas class="l-scene" data-scene aria-hidden="true"></canvas>
+
+  <a class="l-signin" href="/login">Sign in</a>
+
+  <main id="main">
+    <section class="l-fold l-fold--cobalt l-fold--start l-hero" data-fold="hero" aria-labelledby="h-hero">
+      <p class="l-brand">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path fill="currentColor" fill-rule="evenodd" d="M3 5.6A2.6 2.6 0 0 1 5.6 3h5.3a2 2 0 0 1 1.42.59l8.1 8.1a2 2 0 0 1 0 2.82l-5.9 5.9a2 2 0 0 1-2.83 0l-8.1-8.1A2 2 0 0 1 3 10.9zm4.6 3.9a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z"/></svg>
+        Price Watch
+      </p>
+      <div class="l-copy">
+        <h1 id="h-hero">Every price drops. <span class="l-line">Be there when it does.</span></h1>
+        <p class="l-lead">Price Watch looks up the things you want in {{ shops|length }} French shops every
+          {{ settings.check_interval_minutes }} minutes, learns what they usually cost, and tells you the moment
+          one is really cheaper.</p>
+        <p class="l-actions">
+          <a class="l-btn l-btn--solid" href="/login">Sign in</a>
+          <a class="l-btn" href="{{ access_href }}">Request access</a>
+        </p>
+      </div>
+      <a class="l-next" href="#rounds">How it works <span aria-hidden="true">↓</span></a>
+
+      {# Shown until the 3D scene is ready, and instead of it where WebGL is not available. #}
+      <svg class="l-poster" viewBox="0 0 300 560" aria-hidden="true" focusable="false">
+        <path class="l-poster-string" d="M150 0 C 150 60, 143 96, 150 132"/>
+        <path class="l-poster-tag" fill-rule="evenodd" d="M62 104h176l36 36v372a14 14 0 0 1-14 14H40a14 14 0 0 1-14-14V140zm88 14a14 14 0 1 0 0 28 14 14 0 0 0 0-28z"/>
+        <text class="l-poster-name" x="50" y="226">RTX 5070 TI</text>
+        <text class="l-poster-shop" x="50" y="254">LDLC</text>
+        <line class="l-poster-rule" x1="50" x2="250" y1="274" y2="274"/>
+        <text class="l-poster-price" x="190" y="418" text-anchor="end">899</text>
+        <text class="l-poster-cents" x="196" y="352">,00</text>
+        <text class="l-poster-cents" x="198" y="418">€</text>
+        <text class="l-poster-note" x="50" y="472">usual 905 €</text>
+      </svg>
+    </section>
+
+    <section class="l-fold l-fold--manila l-fold--end" id="rounds" data-fold="rounds" aria-labelledby="h-rounds">
+      <div class="l-copy" data-reveal>
+        <h2 id="h-rounds">It does the rounds for you.</h2>
+        <p class="l-lead">Search a product by name, or paste the page of the exact one you want. Every check reads
+          each shop and keeps the cheapest offer that is actually in stock.</p>
+        <ul class="l-run" aria-label="Shops it reads">
+          {% for shop in shops %}<li>{{ shop }}</li>
+          {% endfor %}
+        </ul>
+        <p class="l-note">And any product page that publishes its price, on any shop.</p>
+      </div>
+    </section>
+
+    <section class="l-fold l-fold--night l-fold--start" id="usual" data-fold="usual" aria-labelledby="h-usual">
+      <div class="l-copy" data-reveal>
+        <h2 id="h-usual">It knows a real drop from a fake one.</h2>
+        <p class="l-lead">No list price, no crossed-out number. It keeps the lowest price of every day and takes
+          the median: that is what the product usually costs. An alert means an offer went under it.</p>
+        <dl class="l-facts">
+          <div><dt>Usual price</dt><dd>Median of the last {{ settings.baseline_days }} days</dd></div>
+          <div><dt>Alert</dt><dd>{{ drop }} % under usual, or the target you set</dd></div>
+          <div><dt>Back in stock</dt><dd>If you ask for it</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <section class="l-fold l-fold--deal l-fold--end" id="alerts" data-fold="alerts" aria-labelledby="h-alerts">
+      <div class="l-copy" data-reveal>
+        <h2 id="h-alerts">It tells you where you already are.</h2>
+        <p class="l-lead">One message per real drop, on the channels you choose. Then it stays quiet until the
+          price falls further.</p>
+        <ul class="l-run" aria-label="Channels it can alert on">
+          {% for channel in channels %}<li>{{ channel }}</li>
+          {% endfor %}
+        </ul>
+        <p class="l-note">Plus Matrix, Signal, Teams and the rest of what Apprise reaches.</p>
+      </div>
+    </section>
+
+    <section class="l-fold l-fold--paper l-fold--start" id="sharing" data-fold="sharing" aria-labelledby="h-sharing">
+      <div class="l-copy" data-reveal>
+        <h2 id="h-sharing">Yours, until you pass it on.</h2>
+        <dl class="l-kinds">
+          <div><dt>Private</dt><dd>Only you. Every watch starts this way.</dd></div>
+          <div><dt>Shared</dt><dd>With the accounts you pick, or through a read-only link that needs no account.</dd></div>
+          <div><dt>Public</dt><dd>For everyone on this server.</dd></div>
+        </dl>
+        <p class="l-note">Whoever can see a watch can ask for its alerts on their own channels.</p>
+      </div>
+    </section>
+
+    <section class="l-fold l-fold--cobalt l-fold--center l-access" id="access" data-fold="access" aria-labelledby="h-access">
+      <div class="l-copy" data-reveal>
+        <h2 id="h-access">This one is invite only.</h2>
+        <p class="l-lead">Accounts are created by the person who runs this server. If that is a friend of yours,
+          ask them for one.</p>
+        <p class="l-actions">
+          <a class="l-btn l-btn--solid" href="/login">Sign in</a>
+          {% if access_request_url %}<a class="l-btn" href="{{ access_request_url }}">Ask for an account</a>{% endif %}
+        </p>
+      </div>
+    </section>
+  </main>
+  <footer class="l-footer">Price Watch · self-hosted · reads {{ shops|length }} shops every {{ settings.check_interval_minutes }} minutes</footer>
+</body>
+</html>

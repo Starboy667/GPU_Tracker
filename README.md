@@ -18,6 +18,8 @@ that follows any product, behind a login, with alerts on the channels you choose
   it with chosen accounts, with everyone on the server, or with a read-only link that needs no
   account. People who can see a watch can ask for its alerts on their own channels.
 - **Self-hosted**: one container, one SQLite file, email + password accounts.
+- **A front door**: visitors without an account get a public page that explains what the server
+  does, with the products floating in 3D. Everything else stays behind the login.
 
 ## Run it locally
 
@@ -57,6 +59,7 @@ Environment variables, read once at startup.
 | `SCHEDULER_ENABLED` | `true` | `false` stops the automatic checks; "Check now" still works. |
 | `ALLOW_PRIVATE_NOTIFY_URLS` | `false` | `true` lets channels target private or in-cluster hosts (a self-hosted ntfy or Gotify). |
 | `OUTBOUND_CHECK_URL` | | A "what is my address" JSON endpoint, e.g. `https://am.i.mullvad.net/json`. When set, the Status page shows the address the shops see and whether it is a VPN exit. |
+| `ACCESS_REQUEST_URL` | | Where the public home page sends people who want an account: an `https://` page or a `mailto:` link. Empty: the page only says to ask whoever runs the server. |
 
 Everything else (check interval, drop percentage, history length, ...) is under **Settings** in the app.
 
@@ -118,6 +121,30 @@ Notes on the sources:
 
 Do not go below about 15 minutes between checks: the shops will block you.
 
+## The public home page
+
+`/` answers everybody. Signed in, it is your watches. Signed out, it is a page that says what Price
+Watch does: which shops this server reads and how often, how a deal is detected, where alerts go.
+It shows nothing about accounts or watches, sets no cookie, carries no version number and asks
+search engines to stay away (`noindex`).
+
+The products on it are a [three.js](https://threejs.org) scene. It is decoration: the page says
+the same thing without it, and falls back to a still poster when WebGL is missing, when the
+browser draws 3D on the processor, when the visitor asked to save data, or when frames come too
+slowly even at the lowest quality. With "reduce motion" on, nothing floats and scrolling cuts from
+one picture to the next. `?scene=off` and `?scene=on` force either way.
+
+Pages only run scripts and load fonts from the app itself (`Content-Security-Policy`), so both are
+committed rather than fetched from a CDN:
+
+- `pricewatch/web/static/vendor/three-<version>.min.js` is built by `tools/vendor-three.sh` from
+  the npm package (MIT licence), with only what `tools/vendor-three-entry.js` lists.
+- `pricewatch/web/static/fonts/archivo-latin.woff2` is [Archivo](https://github.com/Omnibus-Type/Archivo)
+  (SIL Open Font License, copied next to it).
+
+Static files are served under `/static/v-<hash>/...`, a name that changes with every release, so
+browsers keep them for good; text files are compressed, pages never are.
+
 ## Accounts and security
 
 - Accounts are created by an administrator (**Settings > Manage accounts**) or from the shell;
@@ -168,13 +195,18 @@ pricewatch/
   forms.py      form validation           portability.py  YAML import / export
   netsafe.py    outbound request guard    security.py  passwords, CSRF, throttling, encryption
   access.py     who may see and change what (every route goes through it)
-  web/          FastAPI app, routes, Jinja templates, one CSS file, one small script
+  web/          FastAPI app, routes, Jinja templates
+    static/     tokens.css (typeface, brand colours), app.css + app.js (the app),
+                landing.css + landing/*.js (the public page and its 3D scene)
 ```
 
 Adding a shop: write `pricewatch/scrapers/<shop>.py` with `parse(html)` and `search(ctx, query, url)`,
 register it in `pricewatch/scrapers/__init__.py`, and save a trimmed page under `tests/fixtures/`
 (`tools/make_fixtures.py` does it). Adding a channel: one module in `pricewatch/notify/` declaring
 its fields and a `send(config, message)`; the form is generated from the fields.
+
+`PRODUCT.md` says who the product is for and how it should look and sound; read it before
+touching the interface.
 
 ## Tests
 

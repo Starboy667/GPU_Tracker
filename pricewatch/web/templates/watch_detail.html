@@ -50,81 +50,88 @@
 </div>
 {% endif %}
 
-{% include "_watch_body.html" %}
+{% include "_watch_summary.html" %}
 
-<section class="section">
-  <div class="section-head">
-    <h2>Alerts for this watch</h2>
-    {% if mine %}<span class="muted">Sent to {% if channel_names %}{{ channel_names|join(", ") }}{% else %}no channel yet{% endif %}</span>{% endif %}
+<div class="split">
+  <div class="split-main">
+    {% include "_watch_offers.html" %}
   </div>
-  {% if alerts %}
-  <ul class="feed">
-    {% for a in alerts %}
-    <li>
-      {{ ui.alert_kind(a.kind) }}
-      <span class="feed-main"><span class="price">{{ a.price|money }}</span> at {{ a.site }}
-        {% if a.baseline %}<span class="muted">· usual {{ a.baseline|money }}</span>{% endif %}
-        <span class="muted">· {{ ui.ext_link(a.url, a.title) }}</span></span>
-      <span class="muted feed-time">{{ a.created_at|localtime }}</span>
-    </li>
-    {% endfor %}
-  </ul>
-  {% else %}
-  <p class="muted">None yet.</p>
-  {% endif %}
-</section>
-
-{% if mine or may_reassign %}
-<section class="section" id="sharing">
-  <div class="section-head">
-    <h2>Who can see it</h2>
-    {% if mine %}<a href="/watches/{{ watch.id }}/edit#visibility">Change</a>{% endif %}
-  </div>
-  {% if mine %}
-  <p>
-    {% if watch.visibility == "private" %}Only you. Nobody else knows this watch exists.
-    {% elif watch.visibility == "public" %}Every account on this server.
-    {% elif shared_emails %}You and {{ shared_emails|join(", ") }}.
-    {% else %}Only you, and anyone who has the link below.{% endif %}
-  </p>
-  {% if share_url %}
-  <div class="field share-link">
-    <label for="share-url">Link for people without an account</label>
-    <div class="control with-suffix">
-      <input id="share-url" type="text" class="mono" value="{{ share_url }}" readonly data-select-on-focus>
-      <button type="button" class="suffix suffix-button" data-copy="#share-url" data-copied="Copied" hidden>Copy</button>
-    </div>
-    <p class="hint">Anyone who has it sees the prices, the chart and the offers, nothing else, and cannot change anything.</p>
-    <details class="confirm confirm-left">
-      <summary class="btn btn-sm">Replace this link</summary>
-      <form method="post" action="/watches/{{ watch.id }}/share-link" class="confirm-body">
-        {{ ui.csrf() }}
-        <p>The current link stops working at once. People you gave it to will need the new one.</p>
-        <button class="btn btn-sm btn-primary">Create a new link</button>
-      </form>
-    </details>
-  </div>
-  {% elif watch.visibility != "private" %}
-  <p class="muted">No link for people without an account. <a href="/watches/{{ watch.id }}/edit#visibility">Turn it on</a> in the settings.</p>
-  {% endif %}
-  {% endif %}
-
-  {% if may_reassign and accounts %}
-  <form method="post" action="/watches/{{ watch.id }}/owner" class="owner-form">
-    {{ ui.csrf() }}
-    <div class="field">
-      <label for="f-owner">Owner</label>
-      <div class="control with-button">
-        <select id="f-owner" name="owner" required>
-          <option value="">{% if owner_email %}{{ owner_email }} (now){% else %}Nobody yet{% endif %}</option>
-          {% for account in accounts %}<option value="{{ account.id }}">{{ account.email }}</option>{% endfor %}
-        </select>
-        <button class="btn">Change owner</button>
+  <aside class="split-aside" aria-label="Alerts and sharing">
+    <section class="section">
+      <div class="section-head">
+        <h2>Alerts for this watch</h2>
+        {% if mine %}<span class="muted">Sent to {% if channel_names %}{{ channel_names|join(", ") }}{% else %}no channel yet{% endif %}</span>{% endif %}
       </div>
-      <p class="hint">As an administrator you can move {% if mine %}your own watches{% else %}a public watch{% endif %} to another account, for instance when someone leaves. The new owner takes over its settings and receives its alerts. If they already use this name, the watch gets a number after it.</p>
-    </div>
-  </form>
-  {% endif %}
-</section>
-{% endif %}
+      {% if alerts %}
+      <ul class="feed feed-tight">
+        {% for a in alerts %}
+        <li>
+          {{ ui.alert_kind(a.kind) }}
+          <span class="feed-main"><span class="price">{{ a.price|money }}</span> at {{ a.site }}
+            {% if a.baseline %}<span class="muted">· usual {{ a.baseline|money }}</span>{% endif %}
+            <span class="sub">{{ ui.ext_link(a.url, a.title) }}</span></span>
+          <span class="muted feed-time">{{ a.created_at|localtime }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="muted">None yet.</p>
+      {% endif %}
+    </section>
+
+    {% if mine or may_reassign %}
+    <section class="section" id="sharing">
+      <div class="section-head">
+        <h2>Who can see it</h2>
+        {% if mine %}<a href="/watches/{{ watch.id }}/edit#visibility">Change</a>{% endif %}
+      </div>
+      {% if mine %}
+      <p>
+        {% if watch.visibility == "private" %}Only you. Nobody else knows this watch exists.
+        {% elif watch.visibility == "public" %}Every account on this server.
+        {% elif shared_emails %}You and {{ shared_emails|join(", ") }}.
+        {% else %}Only you, and anyone who has the link below.{% endif %}
+      </p>
+      {% if share_url %}
+      <div class="field share-link">
+        <label for="share-url">Link for people without an account</label>
+        <div class="control with-suffix">
+          <input id="share-url" type="text" class="mono" value="{{ share_url }}" readonly data-select-on-focus>
+          <button type="button" class="suffix suffix-button" data-copy="#share-url" data-copied="Copied" hidden>Copy</button>
+        </div>
+        <p class="hint">Anyone who has it sees the prices, the chart and the offers, nothing else, and cannot change anything.</p>
+        <details class="confirm confirm-left">
+          <summary class="btn btn-sm">Replace this link</summary>
+          <form method="post" action="/watches/{{ watch.id }}/share-link" class="confirm-body">
+            {{ ui.csrf() }}
+            <p>The current link stops working at once. People you gave it to will need the new one.</p>
+            <button class="btn btn-sm btn-primary">Create a new link</button>
+          </form>
+        </details>
+      </div>
+      {% elif watch.visibility != "private" %}
+      <p class="muted">No link for people without an account. <a href="/watches/{{ watch.id }}/edit#visibility">Turn it on</a> in the settings.</p>
+      {% endif %}
+      {% endif %}
+
+      {% if may_reassign and accounts %}
+      <form method="post" action="/watches/{{ watch.id }}/owner" class="owner-form">
+        {{ ui.csrf() }}
+        <div class="field">
+          <label for="f-owner">Owner</label>
+          <div class="control with-button">
+            <select id="f-owner" name="owner" required>
+              <option value="">{% if owner_email %}{{ owner_email }} (now){% else %}Nobody yet{% endif %}</option>
+              {% for account in accounts %}<option value="{{ account.id }}">{{ account.email }}</option>{% endfor %}
+            </select>
+            <button class="btn">Change owner</button>
+          </div>
+          <p class="hint">As an administrator you can move {% if mine %}your own watches{% else %}a public watch{% endif %} to another account, for instance when someone leaves. The new owner takes over its settings and receives its alerts. If they already use this name, the watch gets a number after it.</p>
+        </div>
+      </form>
+      {% endif %}
+    </section>
+    {% endif %}
+  </aside>
+</div>
 {% endblock %}

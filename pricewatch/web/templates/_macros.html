@@ -1,3 +1,12 @@
+{# The mark: a price tag. #}
+{% macro brand_mark(size=20) %}<svg viewBox="0 0 24 24" width="{{ size }}" height="{{ size }}" aria-hidden="true" focusable="false"><path fill="currentColor" fill-rule="evenodd" d="M3 5.6A2.6 2.6 0 0 1 5.6 3h5.3a2 2 0 0 1 1.42.59l8.1 8.1a2 2 0 0 1 0 2.82l-5.9 5.9a2 2 0 0 1-2.83 0l-8.1-8.1A2 2 0 0 1 3 10.9zm4.6 3.9a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z"/></svg>{% endmacro %}
+
+{# A price the way a shop label prints it: euros large, cents and currency beside them. Read aloud as one amount. #}
+{% macro tag_price(value) %}
+{%- set euros, cents = value|money_parts -%}
+<span class="tp"><span class="visually-hidden">{{ value|money }}</span><span class="tp-euros" aria-hidden="true">{{ euros }}</span><span class="tp-side" aria-hidden="true"><span>,{{ cents }}</span><span>€</span></span></span>
+{%- endmacro %}
+
 {% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% endmacro %}
 
 {# A plain text-like input with label, hint and error. #}
@@ -50,23 +59,23 @@
 {% endmacro %}
 
 {% macro state_chip(state) %}
-{%- if state == "deal" %}<span class="chip chip-good">Deal</span>
+{%- if state == "deal" %}<span class="chip chip-deal">Deal</span>
 {%- elif state == "paused" %}<span class="chip chip-muted">Paused</span>
 {%- elif state == "waiting" %}<span class="chip chip-muted">First check pending</span>
 {%- elif state == "empty" %}<span class="chip chip-warn">Nothing found</span>
 {%- endif %}
 {% endmacro %}
 
-{# How far a watch is shared, as its owner sees it. #}
-{% macro visibility_chip(w) %}
+{# How far a watch is shared, as its owner sees it. In lists, private (the default) goes unsaid. #}
+{% macro visibility_chip(w, say_private=true) %}
 {%- if w.visibility == "public" %}<span class="chip chip-info">Public</span>
 {%- elif w.visibility == "shared" %}<span class="chip chip-info">Shared</span>
-{%- else %}<span class="chip chip-muted">Private</span>{% endif %}
+{%- elif say_private %}<span class="chip chip-muted">Private</span>{% endif %}
 {%- if w.visibility != "private" and w.share_token %} <span class="chip chip-info">Link on</span>{% endif %}
 {% endmacro %}
 
 {% macro alert_kind(kind) %}
-{%- if kind == "deal" %}<span class="chip chip-good">Deal</span>
+{%- if kind == "deal" %}<span class="chip chip-deal">Deal</span>
 {%- elif kind == "restock" %}<span class="chip chip-info">Back in stock</span>
 {%- elif kind == "health" %}<span class="chip chip-warn">Scraper</span>
 {%- else %}<span class="chip chip-muted">{{ kind }}</span>{% endif %}

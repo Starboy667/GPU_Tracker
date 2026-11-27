@@ -1,0 +1,31 @@
+{# Every offer found for one watch, cheapest first. #}
+<section class="section">
+  <div class="section-head">
+    <h2>Offers found</h2>
+    <span class="muted">{{ listings|length }} from the latest checks, cheapest first</span>
+  </div>
+  {% if listings %}
+  <div class="table-wrap">
+  <table class="table table-stack offers">
+    <thead><tr><th scope="col" class="num">Price</th><th scope="col">Shop</th><th scope="col">Stock</th><th scope="col">Title</th><th scope="col">Seen since</th></tr></thead>
+    <tbody>
+      {% for l in listings %}
+      <tr{% if l.id in deal_ids %} class="is-deal"{% endif %}>
+        <td class="num" data-label="Price"><span class="price">{{ l.price|money }}</span>{% if l.id in deal_ids %} <span class="chip chip-deal">Deal</span>{% endif %}</td>
+        <td data-label="Shop">{{ l.site }}</td>
+        <td data-label="Stock">{{ ui.stock(l.in_stock) }}</td>
+        <td data-label="Title">{{ ui.ext_link(l.url, l.title) }}</td>
+        <td data-label="Seen since"><span class="muted">{{ l.first_seen|localday }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% elif watch.last_checked_at and mine %}
+  <p class="notice notice-info">The last check found nothing that matches. <a href="/watches/{{ watch.id }}/edit">Open the editor</a> and use “Test without saving” to see what the shops return and why it is filtered out.</p>
+  {% elif watch.last_checked_at %}
+  <p class="muted">The last check found nothing that matches.</p>
+  {% else %}
+  <p class="muted">Waiting for the first check.</p>
+  {% endif %}
+</section>

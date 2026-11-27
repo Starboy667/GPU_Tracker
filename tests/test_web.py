@@ -15,77 +15,7 @@ from pricewatch.repos import users as users_repo
 from pricewatch.repos import watches as watches_repo
 from pricewatch.scrapers.base import KIND_RETAILER, Listing, ScrapeError, SiteScraper
 from pricewatch.web.app import bootstrap_admin, build_services, create_app
-
-ADMIN = ("admin@example.org", "correct horse battery")
-TOKEN = re.compile(r'name="csrf_token" value="([^"]+)"')
-
-
-class Site:
-    """A signed-out browser pointed at the app, plus handles on the fakes behind it."""
-
-    def __init__(self, client, services, shop, sent):
-        self.client, self.svc, self.shop, self.sent = client, services, shop, sent
-        self.send_error = None
-
-    def get(self, path, **kw):
-        return self.client.get(path, follow_redirects=False, **kw)
-
-    def token(self):
-        page = self.get("/account")
-        if page.status_code == 303:
-            page = self.get("/login")
-        return TOKEN.search(page.text).group(1)
-
-    def post(self, path, data=None, *, token=None, follow=False):
-        payload = {"csrf_token": self.token() if token is None else token, **(data or {})}
-        return self.client.post(path, data=payload, follow_redirects=follow)
-
-    def login(self, email=ADMIN[0], password=ADMIN[1], **extra):
-        return self.post("/login", {"email": email, "password": password, **extra})
-
-    def run_checks(self):
-        while self.svc.scheduler.run_pending():
-            pass
-
-    def db(self):
-        return self.svc.db.connect()
-
-
-@pytest.fixture
-def site(config, clock, public_dns):
-    shop = {"results": []}
-    sent = []
-
-    def search(ctx, query, url=None):
-        if isinstance(shop["results"], Exception):
-            raise shop["results"]
-        return list(shop["results"])
-
-    def product(ctx, url, selector=None):
-        return Listing(site="shop.example", title="Product page", price=499.0, url=url, in_stock=True, source="product")
-
-    holder = {}
-
-    def send(type_key, channel_config, message, *, allow_private=False):
-        if holder["site"].send_error:
-            raise holder["site"].send_error
-        sent.append((type_key, channel_config, message))
-
-    scrapers = {"ldlc": SiteScraper(key="ldlc", label="LDLC", kind=KIND_RETAILER, domains=("ldlc.com",),
-                                    description="", search=search)}
-    services = build_services(config, scrapers=scrapers, product_scraper=product, send=send,
-                              pause=lambda: None, clock=clock)
-    services.scheduler.start = lambda **kwargs: None  # tests drain the queue themselves: run_checks()
-    with TestClient(create_app(config, services=services)) as client:
-        holder["site"] = Site(client, services, shop, sent)
-        yield holder["site"]
-
-
-@pytest.fixture
-def admin(site):
-    assert site.login().status_code == 303
-    return site
-
+from tests.conftest import ADMIN, TOKEN, Site
 
 def offer(price=900.0, url="https://www.ldlc.com/fiche/1.html", title="MSI RTX 5070 12G", in_stock=True):
     return Listing(site="LDLC", title=title, price=price, url=url, in_stock=in_stock, source="ldlc")
@@ -98,7 +28,7 @@ NTFY = {"name": "Phone", "cfg_topic": "deals", "event_deal": "on", "event_health
 # ------------------------------------------------------------------ authentication
 
 def test_pages_require_a_session(site):
-    for path in ("/", "/alerts", "/channels", "/status", "/settings", "/users", "/account", "/watches/new",
+    for path in ("/alerts", "/channels", "/status", "/settings", "/users", "/account", "/watches/new",
                  "/watches/1", "/watches/export.yaml"):
         response = site.get(path)
         assert response.status_code == 303 and response.headers["location"].startswith("/login"), path
@@ -123,7 +53,7 @@ def test_login_logout_flow(site):
     assert site.get("/login").status_code == 303  # already signed in
 
     assert site.post("/logout").headers["location"] == "/login"
-    assert site.get("/").status_code == 303
+    assert site.get("/account").status_code == 303
 
 
 def test_login_ignores_offsite_next(site):
@@ -137,7 +67,7 @@ def test_login_is_rate_limited(site):
         assert site.login(password="wrong wrong wrong").status_code == 401
     blocked = site.login()  # even the right password has to wait now
     assert blocked.status_code == 429 and "Too many failed attempts" in blocked.text
-    assert site.get("/").status_code == 303
+    assert site.get("/account").status_code == 303
 
 
 def test_one_address_cannot_lock_an_account_for_everyone(site):
@@ -200,7 +130,7 @@ def test_hsts_and_secure_cookie_when_served_over_https(config, clock):
 def test_session_ends_when_the_password_changes_elsewhere(admin):
     with admin.db() as conn:
         users_repo.set_password(conn, users_repo.get_by_email(conn, ADMIN[0]).id, "x")
-    assert admin.get("/").status_code == 303
+    assert admin.get("/account").status_code == 303
 
 
 def test_bootstrap_admin_rules(config, clock, tmp_path):
@@ -259,7 +189,7 @@ def test_create_watch_then_first_check_finds_a_deal(admin):
     detail = admin.get("/watches/1")
     assert detail.status_code == 200
     assert "MSI RTX 5070 12G" in detail.text and "RTX 5080" not in detail.text
-    assert detail.text.count('class="chip chip-good">Deal') >= 1 and "target price" in detail.text
+    assert detail.text.count('class="chip chip-deal">Deal') >= 1 and "target price" in detail.text
     assert 'data-chart' in detail.text and "Show these prices as a table" in detail.text
     assert [m.title for _, _, m in admin.sent] == ["🔥 1 deal"]
 
@@ -564,7 +494,7 @@ def test_an_administrator_can_remove_another_but_not_themselves(admin):
 
 def test_admin_resetting_own_password_signs_out(admin):
     assert admin.post("/users/1/password", {"password": "a brand new password"}).headers["location"] == "/login"
-    assert admin.get("/").status_code == 303
+    assert admin.get("/account").status_code == 303
     assert admin.login(password="a brand new password").status_code == 303
 
 

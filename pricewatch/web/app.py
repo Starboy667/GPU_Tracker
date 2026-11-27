@@ -1,7 +1,6 @@
 """FastAPI application factory."""
 from __future__ import annotations
 
-import hashlib
 import logging
 import threading
 from collections.abc import Callable
@@ -12,7 +11,6 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -26,9 +24,10 @@ from pricewatch.repos import users as users_repo
 from pricewatch.scan import polite_pause
 from pricewatch.scheduler import Scheduler
 from pricewatch.web import views
-from pricewatch.web.charts import fmt_money
+from pricewatch.web.charts import fmt_money, money_parts
 from pricewatch.web.deps import Forbidden, LoginRequired, NotFound, Services, redirect, render
 from pricewatch.web.routes import account, alerts, auth, channels, dashboard, settings, shared, watches
+from pricewatch.web.static_files import StaticAssets, static_version
 
 log = logging.getLogger(__name__)
 
@@ -85,6 +84,7 @@ def build_templates(config: Config) -> Jinja2Templates:
     templates = Jinja2Templates(directory=str(HERE / "templates"))
     env = templates.env
     env.filters["money"] = fmt_money
+    env.filters["money_parts"] = money_parts
     env.filters["ago"] = lambda value, now: views.ago(value, now)
     env.filters["localtime"] = lambda value: views.local_time(value, config.tz)
     env.filters["localday"] = lambda value: views.local_day(value, config.tz)
@@ -92,16 +92,9 @@ def build_templates(config: Config) -> Jinja2Templates:
     env.filters["http_url"] = views.http_url
     env.filters["percent"] = views.percent
     env.globals["until"] = views.until
-    env.globals["static_version"] = _static_version()
+    version = static_version(HERE / "static")
+    env.globals["static"] = lambda path: f"/static/v-{version}/{path}"
     return templates
-
-
-def _static_version() -> str:
-    """Short hash of the static files: changes whenever one of them does."""
-    digest = hashlib.sha256()
-    for path in sorted((HERE / "static").iterdir()):
-        digest.update(path.read_bytes())
-    return digest.hexdigest()[:10]
 
 
 def build_services(
@@ -201,7 +194,7 @@ def create_app(config: Config | None = None, services: Services | None = None) -
         https_only=config.cookie_secure,
     )
     app.add_middleware(SecurityHeaders, hsts=config.cookie_secure)
-    app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
+    app.mount("/static", StaticAssets(HERE / "static"), name="static")
 
     for module in (auth, dashboard, watches, shared, channels, alerts, settings, account):
         app.include_router(module.router)

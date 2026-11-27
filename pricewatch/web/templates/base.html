@@ -7,16 +7,19 @@
   <meta name="robots" content="noindex, nofollow">
   {% if refresh %}<meta http-equiv="refresh" content="6">{% endif %}
   <title>{% block title %}{% endblock %} · Price Watch</title>
-  <link rel="stylesheet" href="/static/app.css?v={{ static_version }}">
-  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-  <script src="/static/app.js?v={{ static_version }}" defer></script>
+  <link rel="preload" href="{{ static('fonts/archivo-latin.woff2') }}" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="{{ static('tokens.css') }}">
+  <link rel="stylesheet" href="{{ static('app.css') }}">
+  <link rel="icon" href="{{ static('favicon.svg') }}" type="image/svg+xml">
+  <script src="{{ static('app.js') }}" defer></script>
 </head>
 <body>
+  {%- import "_macros.html" as shell %}
   <a class="skip-link" href="#main">Skip to content</a>
   {% if user %}
   <header class="topbar">
     <div class="topbar-inner">
-      <a class="brand" href="/">Price Watch</a>
+      <a class="brand" href="/">{{ shell.brand_mark() }} Price Watch</a>
       <nav class="nav" aria-label="Main">
         <a href="/"{% if nav == "watches" %} aria-current="page"{% endif %}>Watches</a>
         <a href="/alerts"{% if nav == "alerts" %} aria-current="page"{% endif %}>Alerts</a>

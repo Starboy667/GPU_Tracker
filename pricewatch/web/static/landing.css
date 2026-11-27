@@ -1,0 +1,292 @@
+/* Price Watch: the public home page.
+   Six sheets of coloured paper scroll by; the products float in a fixed layer between the sheets
+   and the text. Without the 3D scene the page is the same, minus the objects. */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+
+.landing {
+  margin: 0;
+  background: var(--cobalt);
+  color: var(--paper);
+  font: 420 1.0625rem/1.5 var(--font);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: clip;
+}
+
+:where(.landing) :where(h1, h2, p, ul, dl, dd) { margin: 0; }
+:where(.landing) ul { padding: 0; list-style: none; }
+.landing ::selection { background: var(--manila); color: var(--ink); }
+
+.skip-link {
+  position: fixed; left: 0.75rem; top: -4rem; z-index: 10;
+  padding: 0.625rem 0.875rem; border-radius: 0.375rem;
+  background: var(--paper); color: var(--ink); font-weight: 700;
+}
+.skip-link:focus { top: 0.75rem; outline: 3px solid var(--ink); outline-offset: 3px; box-shadow: 0 0 0 9px var(--paper); }
+
+.landing :focus-visible { outline: 3px solid var(--fold-accent, var(--manila)); outline-offset: 3px; border-radius: 0.25rem; }
+
+/* ---------------------------------------------------------------- layers */
+
+.l-scene {
+  position: fixed; inset: 0; z-index: 1;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1100ms var(--ease-out);
+}
+.has-scene .l-scene { opacity: 1; }
+
+.l-fold {
+  --fold-soft: color-mix(in oklch, var(--fold-ink) 80%, var(--fold-bg));
+  --fold-rule: color-mix(in oklch, var(--fold-ink) 24%, var(--fold-bg));
+  position: relative;
+  min-height: 100vh;
+  min-height: 100svh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: clamp(1.5rem, 4vw, 5rem);
+  align-items: center;
+  padding: clamp(5rem, 12vh, 8rem) clamp(1.25rem, 5.5vw, 6.5rem);
+  color: var(--fold-ink);
+}
+/* The sheet itself: a layer of its own, so the canvas can slide between it and the text. */
+.l-fold::before { content: ""; position: absolute; inset: 0; z-index: 0; background: var(--fold-bg); }
+.l-fold > * { position: relative; z-index: 2; }
+
+.l-fold--cobalt { --fold-bg: var(--cobalt); --fold-ink: var(--paper); --fold-accent: var(--manila); }
+.l-fold--manila { --fold-bg: var(--manila); --fold-ink: var(--ink); --fold-accent: var(--cobalt); }
+.l-fold--night { --fold-bg: var(--night); --fold-ink: var(--paper); --fold-accent: var(--deal-bright); }
+.l-fold--deal { --fold-bg: var(--deal-bright); --fold-ink: var(--deal-ink); --fold-accent: var(--deal-ink); }
+.l-fold--paper { --fold-bg: var(--paper); --fold-ink: var(--ink); --fold-accent: var(--cobalt); }
+
+.l-fold--start .l-copy { grid-column: 1; }
+.l-fold--end .l-copy { grid-column: 2; }
+.l-fold--center { grid-template-columns: minmax(0, 1fr); align-items: start; justify-items: center; text-align: center; }
+
+.l-copy { max-width: 40rem; isolation: isolate; }
+.l-fold--center .l-copy { max-width: 46rem; }
+/* Between two sheets the objects cross from one side to the other, behind the words. Each block
+   of text carries a patch of its sheet, soft at the edges: what passes behind fades out instead
+   of tangling with the type. */
+.l-copy::before {
+  content: ""; position: absolute; z-index: -1; inset: -1.5rem 0;
+  background: var(--fold-bg);
+  box-shadow: 0 0 1.75rem 1.5rem var(--fold-bg);
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------- type */
+
+.landing h1, .landing h2 { font-stretch: 86%; letter-spacing: -0.028em; text-wrap: balance; }
+
+.landing h1 {
+  font-size: clamp(2.875rem, 1rem + 6vw, 7.25rem);
+  line-height: 0.92;
+  font-weight: 860;
+}
+/* The second sentence answers the first: same size, a third of the weight. */
+.l-line { display: block; font-weight: 300; color: var(--manila); }
+
+.landing h2 {
+  font-size: clamp(2.25rem, 1rem + 4.1vw, 5rem);
+  line-height: 0.96;
+  font-weight: 820;
+}
+
+.l-lead {
+  margin-top: clamp(1.5rem, 2.8vw, 2.5rem);
+  max-width: 34em;
+  font-size: clamp(1.0625rem, 0.92rem + 0.5vw, 1.375rem);
+  line-height: 1.46;
+  color: var(--fold-soft);
+  text-wrap: pretty;
+}
+.l-fold--center .l-lead { margin-inline: auto; }
+
+.l-note { margin-top: 1.25rem; max-width: 38em; color: var(--fold-soft); }
+
+/* A run of names set like a line of a price list. The separator sits in each name's left
+   gutter, and the first gutter of every line is clipped away: no slash starts or ends a line. */
+.l-run {
+  --gutter: 1.2em;
+  display: flex; flex-wrap: wrap; row-gap: 0.125em;
+  margin: clamp(1.75rem, 3vw, 2.75rem) 0 0 calc(var(--gutter) * -1);
+  clip-path: inset(0 0 0 var(--gutter));
+  font-size: clamp(1.3125rem, 0.9rem + 1.35vw, 2.25rem);
+  font-weight: 780; font-stretch: 76%; line-height: 1.16; letter-spacing: -0.005em;
+}
+.l-run li { position: relative; padding-left: var(--gutter); white-space: nowrap; }
+.l-run li::before { content: "/"; position: absolute; left: 0.44em; font-weight: 250; color: var(--fold-rule); }
+
+.l-facts, .l-kinds { margin-top: clamp(1.75rem, 3vw, 2.75rem); border-top: 1px solid var(--fold-rule); }
+.l-facts > div, .l-kinds > div {
+  display: grid; grid-template-columns: minmax(7.5rem, 0.5fr) minmax(0, 1fr); column-gap: 1.5rem; align-items: baseline;
+  padding: 0.875rem 0; border-bottom: 1px solid var(--fold-rule);
+}
+.l-facts dt { font-weight: 720; font-stretch: 88%; }
+.l-facts dd { color: var(--fold-soft); }
+.l-kinds dt {
+  font-size: clamp(1.5rem, 1rem + 1.5vw, 2.5rem);
+  font-weight: 820; font-stretch: 80%; line-height: 1; letter-spacing: -0.015em;
+}
+.l-kinds dd { color: var(--fold-soft); font-size: 1.0625rem; }
+
+/* ---------------------------------------------------------------- actions */
+
+.l-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: clamp(2rem, 3.4vw, 2.75rem); }
+.l-fold--center .l-actions { justify-content: center; }
+
+.l-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 3.25rem; padding: 0 1.625rem;
+  border: 1.5px solid currentColor; border-radius: 0.5rem;
+  color: var(--fold-ink);
+  font-weight: 720; font-stretch: 92%; font-size: 1.0625rem; text-decoration: none; white-space: nowrap;
+  transition: transform 220ms var(--ease-out), background-color 160ms ease-out, color 160ms ease-out, border-color 160ms ease-out;
+}
+.l-btn:hover { background: color-mix(in oklch, var(--fold-ink) 14%, transparent); transform: translateY(-2px); }
+.l-btn:active { transform: translateY(0); transition-duration: 60ms; }
+.l-btn--solid { background: var(--fold-ink); border-color: var(--fold-ink); color: var(--fold-bg); }
+.l-btn--solid:hover { background: var(--fold-accent); border-color: var(--fold-accent); color: var(--ink); }
+
+/* Always within reach, on any sheet: paper with an ink edge reads on all five colours. */
+.l-signin {
+  position: fixed; z-index: 5;
+  top: max(1rem, env(safe-area-inset-top)); right: max(clamp(1rem, 3vw, 2.5rem), env(safe-area-inset-right));
+  display: inline-flex; align-items: center; min-height: 2.75rem; padding: 0 1.125rem;
+  background: var(--paper); color: var(--ink);
+  border: 1.5px solid var(--ink); border-radius: 0.5rem;
+  box-shadow: 0 0.1875rem 0 var(--ink);
+  font-weight: 720; font-stretch: 92%; text-decoration: none;
+  transition: transform 180ms var(--ease-out), box-shadow 180ms var(--ease-out), background-color 160ms ease-out;
+}
+.l-signin:hover { background: var(--manila); transform: translateY(-1px); box-shadow: 0 0.25rem 0 var(--ink); }
+.l-signin:active { transform: translateY(0.1875rem); box-shadow: 0 0 0 var(--ink); transition-duration: 60ms; }
+.l-signin:focus-visible {
+  outline: 3px solid var(--ink); outline-offset: 3px; border-radius: 0.5rem;
+  box-shadow: 0 0 0 3px var(--paper), 0 0 0 9px var(--paper);
+}
+
+/* ---------------------------------------------------------------- hero */
+
+.l-brand {
+  position: absolute; z-index: 2;
+  top: max(1.375rem, env(safe-area-inset-top)); left: clamp(1.25rem, 5.5vw, 6.5rem);
+  display: flex; align-items: center; gap: 0.5rem;
+  font-weight: 820; font-stretch: 88%; font-size: 1.1875rem; letter-spacing: -0.01em;
+}
+.l-brand svg { color: var(--manila); }
+
+.l-next {
+  position: absolute; z-index: 2;
+  bottom: clamp(1.25rem, 4vh, 2.5rem); left: clamp(1.25rem, 5.5vw, 6.5rem);
+  color: var(--fold-soft); font-weight: 600; text-decoration: none;
+  transition: color 160ms ease-out;
+}
+.l-next span { display: inline-block; margin-left: 0.25rem; transition: transform 320ms var(--ease-out); }
+.l-next:hover { color: var(--fold-ink); }
+.l-next:hover span { transform: translateY(0.25rem); }
+
+/* The stand-in for the 3D scene: one tag on its string. */
+.l-poster {
+  position: absolute; z-index: 2; top: 0; right: 19vw;
+  width: clamp(11rem, 19vw, 18rem); height: auto;
+  transform-origin: 50% 0; rotate: 4deg;
+  transition: opacity 500ms ease-out, visibility 0s linear 500ms;
+}
+.has-scene .l-poster { opacity: 0; visibility: hidden; }
+.l-poster-string { fill: none; stroke: var(--paper); stroke-width: 2; }
+.l-poster-tag { fill: var(--manila); }
+.l-poster text { fill: var(--ink); font-family: var(--font); }
+.l-poster-name { font-size: 27px; font-weight: 800; font-stretch: 78%; letter-spacing: 0.02em; }
+.l-poster-shop { font-size: 19px; font-weight: 500; opacity: 0.72; }
+.l-poster-rule { stroke: var(--ink); stroke-width: 1.5; opacity: 0.35; }
+.l-poster-price { font-size: 132px; font-weight: 900; font-stretch: 62%; }
+.l-poster-cents { font-size: 52px; font-weight: 800; font-stretch: 75%; }
+.l-poster-note { font-size: 19px; font-weight: 500; opacity: 0.72; }
+
+/* ---------------------------------------------------------------- last sheet */
+
+.l-access { padding-top: clamp(6rem, 17vh, 11rem); }
+
+/* Above the canvas, with a ground of its own: the objects pass behind it. */
+.l-footer {
+  position: relative; z-index: 3;
+  padding: 1rem clamp(1.25rem, 5.5vw, 6.5rem);
+  background: var(--cobalt-deep);
+  color: color-mix(in oklch, var(--paper) 82%, var(--cobalt-deep));
+  font-size: 0.875rem; text-align: center;
+}
+
+/* ---------------------------------------------------------------- arriving */
+
+@media (prefers-reduced-motion: no-preference) {
+  .l-hero .l-copy > *, .l-brand, .l-next { animation: l-rise 1000ms var(--ease-out-expo) both; }
+  .l-hero .l-lead { animation-delay: 120ms; }
+  .l-hero .l-actions { animation-delay: 220ms; }
+  .l-next { animation-delay: 420ms; }
+  .l-poster { animation: l-sway 3600ms ease-in-out infinite alternate; }
+
+  .js [data-reveal] > * { opacity: 0; translate: 0 1.5rem; transition: opacity 700ms ease-out, translate 1000ms var(--ease-out-expo); }
+  .js [data-reveal] > :nth-child(2) { transition-delay: 80ms; }
+  .js [data-reveal] > :nth-child(3) { transition-delay: 160ms; }
+  .js [data-reveal] > :nth-child(4) { transition-delay: 240ms; }
+  .js [data-reveal].is-in > * { opacity: 1; translate: 0 0; }
+}
+@keyframes l-rise { from { opacity: 0; translate: 0 1.75rem; } }
+
+/* Three depths: the sheet scrolls at the page's speed, the words a little slower, the objects
+   on their own path. Where the browser cannot tie an animation to scrolling, the words simply
+   move with their sheet. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .l-fold:not(.l-hero) .l-copy {
+      animation: l-drift linear both;
+      animation-timeline: view();
+      animation-range: entry 0% exit 100%;
+    }
+  }
+}
+@keyframes l-drift { from { transform: translateY(7vh); } to { transform: translateY(-7vh); } }
+@keyframes l-sway { from { rotate: 5deg; } to { rotate: -3deg; } }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .l-scene, .l-poster, .l-btn, .l-signin, .l-next span { transition: none; }
+}
+
+/* ---------------------------------------------------------------- narrow and tall screens
+   The objects take the top of each sheet and the text sits under them. The same condition
+   decides the camera framing in landing/scene.js. */
+
+@media (max-width: 59.99rem), (max-aspect-ratio: 5/4) {
+  .l-fold {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: end;
+    padding-top: 50vh; padding-top: 50svh;
+    padding-bottom: clamp(3.5rem, 9vh, 5.5rem);
+  }
+  .l-fold--start .l-copy, .l-fold--end .l-copy { grid-column: 1; }
+  /* The words scroll up past the objects: here the sheet closes over the canvas just above
+     them, so type never sits on a moving picture. */
+  .l-fold { overflow: clip; }
+  .l-fold:not(.l-hero) .l-copy { animation: none; } /* no drift here: the words must stay under the objects */
+  .l-copy::before {
+    inset: -5rem -50vw -100vh;
+    background: linear-gradient(to bottom, transparent, var(--fold-bg) 5rem);
+    box-shadow: none;
+  }
+  .l-fold--center { align-items: end; text-align: left; justify-items: start; }
+  .l-fold--center .l-lead { margin-inline: 0; }
+  .l-fold--center .l-actions { justify-content: flex-start; }
+  .landing h1 { font-size: clamp(2.625rem, 0.75rem + 9.6vw, 5.25rem); }
+  .landing h2 { font-size: clamp(2.125rem, 0.75rem + 7.4vw, 4.25rem); }
+  .l-next { display: none; }
+  .l-poster { right: auto; left: 50%; translate: -50% 0; width: clamp(9rem, 38vw, 15rem); }
+  .l-footer { text-align: left; }
+  .l-facts > div, .l-kinds > div { grid-template-columns: minmax(0, 1fr); row-gap: 0.25rem; }
+}
